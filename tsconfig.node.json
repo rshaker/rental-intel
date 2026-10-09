@@ -1,0 +1,27 @@
+{
+    // Files that run in Node rather than in the browser: build configuration,
+    // Playwright specs, and the tasks.
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        // "chrome" is here for the Playwright specs: their page.evaluate and
+        // worker.evaluate callbacks are authored in Node but serialized into the
+        // extension, where chrome.* is what they are there to poke at.
+        "types": ["node", "chrome", "vite/client"],
+        "allowJs": true,
+        "checkJs": false
+    },
+    "include": [
+        "package.json",
+        "vite.config.ts",
+        "vitest.config.ts",
+        "manifest.config.ts",
+        "playwright.config.ts",
+        "playwright/**/*.ts",
+        "tasks/**/*.mjs",
+        "src/sources/contract.ts",
+        "src/sources/descriptors.ts",
+        "src/sources/*/descriptor.ts",
+        "src/sources/*/urls.ts"
+    ],
+    "exclude": ["node_modules", "dist", "dist-e2e"]
+}

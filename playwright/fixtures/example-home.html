@@ -1,0 +1,67 @@
+<!doctype html>
+<!--
+  SYNTHETIC fixture: a single-dwelling listing on listings.example (see
+  example-building.html). One plan with one unit, a street address with a
+  unit designation, and the same three data sources as the building page.
+-->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>118 Pecan St Unit B - Springfield, IL | listings.example</title>
+        <link rel="canonical" href="https://listings.example/l/pecan00b/" />
+        <meta property="og:url" content="https://listings.example/l/pecan00b/" />
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "SingleFamilyResidence",
+                "identifier": "pecan00b",
+                "name": "118 Pecan St Unit B",
+                "url": "https://listings.example/l/pecan00b/",
+                "telephone": "(217) 555-0199",
+                "address": {
+                    "@type": "PostalAddress",
+                    "streetAddress": "118 Pecan St Unit B",
+                    "addressLocality": "Springfield",
+                    "addressRegion": "IL",
+                    "postalCode": "62704"
+                },
+                "geo": { "@type": "GeoCoordinates", "latitude": 39.7812, "longitude": -89.6501 },
+                "image": "https://photos.listings.example/pecan00b/1.jpg"
+            }
+        </script>
+    </head>
+    <body>
+        <main data-listing="pecan00b">
+            <h1 data-field="name">118 Pecan St Unit B</h1>
+            <p data-field="address">118 Pecan St Unit B, Springfield, IL 62704</p>
+            <section data-field="plans">
+                <table>
+                    <tr data-unit="main"><td>Whole home</td><td>1,150 sqft</td><td>$2,400</td><td>Available Dec 1</td></tr>
+                </table>
+            </section>
+            <ul data-field="amenities">
+                <li>Fenced yard</li>
+                <li>Off-street parking</li>
+            </ul>
+            <p data-field="pets">No pets</p>
+            <div data-field="description">A quiet lower-level unit with its own entrance and a fenced yard.</div>
+            <img data-photo src="https://photos.listings.example/pecan00b/1.jpg" alt="" />
+        </main>
+        <script id="listing-data" type="application/json">
+            {
+                "id": "pecan00b",
+                "kind": "home",
+                "type": "house",
+                "plans": [
+                    {
+                        "id": "main",
+                        "name": null,
+                        "beds": 2,
+                        "baths": 1,
+                        "units": [{ "id": "main", "name": "Whole home", "beds": 2, "baths": 1, "sqft": 1150, "rent": 2400, "available": "2026-12-01" }]
+                    }
+                ]
+            }
+        </script>
+    </body>
+</html>

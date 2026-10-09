@@ -1,0 +1,26 @@
+<!doctype html>
+<!--
+  SYNTHETIC fixture -- the negative case. See zillow-listing.html for why these
+  are hand-written and how to replace them with real captures.
+
+  The point of this one: it has listing *furniture* on screen (price chips, a
+  heading) but nothing claiming to be one particular property -- no canonical
+  _zpid, no og:url, no hydration payload. Detection must refuse it, and a forced
+  click on it must capture nothing rather than inventing a dossier from whichever
+  card happens to come first.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Portland OR Rentals | Zillow</title>
+    <link rel="canonical" href="https://www.zillow.com/portland-or/rentals/">
+    <meta property="og:type" content="website">
+</head>
+<body>
+    <h1>Portland OR Rental Listings</h1>
+    <ul>
+        <li><article><div data-testid="price">$2,500/mo</div><address>1234 Elm St</address></article></li>
+        <li><article><div data-testid="price">$1,900/mo</div><address>99 Oak Ave</address></article></li>
+    </ul>
+</body>
+</html>

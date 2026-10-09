@@ -1,0 +1,35 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "moduleDetection": "force",
+        "lib": [
+            "DOM", // Type definitions for web browser APIs
+            "DOM.Iterable", // Extends DOM types with iterable protocol support
+            "ESNext", // Latest ECMAScript features
+            "WebWorker" // Service worker globals
+        ],
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true, // Vite transpiles file-by-file
+        "verbatimModuleSyntax": true, // Forces `import type` where it matters
+        "noEmit": true, // Vite owns the build; tsc only typechecks
+        "jsx": "react-jsx", // Preact's automatic runtime; Vite's esbuild reads these two
+        "jsxImportSource": "preact",
+
+        "strict": true,
+        "noImplicitOverride": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUncheckedIndexedAccess": true,
+        "forceConsistentCasingInFileNames": true,
+        "noUnusedLocals": false, // Noisy while scaffolding; flip on when v1 lands
+        "noUnusedParameters": false,
+
+        "skipLibCheck": true,
+        "pretty": true,
+        "newLine": "lf"
+    }
+}

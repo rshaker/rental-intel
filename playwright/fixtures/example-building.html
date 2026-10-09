@@ -1,0 +1,101 @@
+<!doctype html>
+<!--
+  SYNTHETIC fixture: a multi-unit listing on listings.example, the example
+  source's imaginary site (src/sources/example/). It carries the three
+  things real listing pages carry -- JSON-LD for crawlers, an inline JSON
+  payload for the site's own scripts, and a marked-up DOM -- so the core can
+  be exercised without any real site in the loop.
+-->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>The Juniper Lofts - Springfield, IL | listings.example</title>
+        <link rel="canonical" href="https://listings.example/l/juniper01/" />
+        <meta property="og:url" content="https://listings.example/l/juniper01/" />
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "BreadcrumbList",
+                        "itemListElement": [
+                            { "@type": "ListItem", "position": 1, "name": "Springfield", "item": "https://listings.example/search/springfield/" },
+                            { "@type": "ListItem", "position": 2, "name": "The Juniper Lofts" }
+                        ]
+                    },
+                    {
+                        "@type": "ApartmentComplex",
+                        "identifier": "juniper01",
+                        "name": "The Juniper Lofts",
+                        "url": "https://listings.example/l/juniper01/",
+                        "telephone": "(217) 555-0142",
+                        "address": {
+                            "@type": "PostalAddress",
+                            "streetAddress": "4200 Juniper Ln",
+                            "addressLocality": "Springfield",
+                            "addressRegion": "IL",
+                            "postalCode": "62704"
+                        },
+                        "geo": { "@type": "GeoCoordinates", "latitude": 39.7991, "longitude": -89.6443 },
+                        "image": [
+                            "https://photos.listings.example/juniper01/1.jpg",
+                            "https://photos.listings.example/juniper01/2.jpg",
+                            "https://photos.listings.example/juniper01/3.jpg"
+                        ]
+                    }
+                ]
+            }
+        </script>
+    </head>
+    <body>
+        <main data-listing="juniper01" data-rating="4.2">
+            <h1 data-field="name">The Juniper Lofts</h1>
+            <p data-field="address">4200 Juniper Ln, Springfield, IL 62704</p>
+            <section data-field="plans">
+                <h2>Floor plans</h2>
+                <table>
+                    <tr data-plan="p1"><th>A1</th><td>1 bd</td><td>1 ba</td></tr>
+                    <tr data-unit="u101"><td>Unit 101</td><td>620 sqft</td><td>$1,895</td><td>Available now</td></tr>
+                    <tr data-unit="u305"><td>Unit 305</td><td>640 sqft</td><td>$1,950</td><td>Nov 1</td></tr>
+                    <tr data-plan="p2"><th>B2</th><td>2 bd</td><td>2 ba</td></tr>
+                    <tr data-unit="u412"><td>Unit 412</td><td>980 sqft</td><td>$2,850</td><td>Oct 15</td></tr>
+                </table>
+            </section>
+            <ul data-field="amenities">
+                <li>In-unit laundry</li>
+                <li>Rooftop deck</li>
+                <li>Bike storage</li>
+            </ul>
+            <p data-field="pets">Cats and dogs welcome, $50/mo pet rent</p>
+            <div data-field="description">A mid-rise community two blocks from the light rail, with a rooftop deck and quiet courtyard units.</div>
+            <img data-photo src="https://photos.listings.example/juniper01/1.jpg" alt="" />
+        </main>
+        <script id="listing-data" type="application/json">
+            {
+                "id": "juniper01",
+                "kind": "building",
+                "type": "apartment",
+                "rating": 4.2,
+                "plans": [
+                    {
+                        "id": "p1",
+                        "name": "A1",
+                        "beds": 1,
+                        "baths": 1,
+                        "units": [
+                            { "id": "u101", "name": "Unit 101", "beds": 1, "baths": 1, "sqft": 620, "rent": 1895, "available": "Available now" },
+                            { "id": "u305", "name": "Unit 305", "beds": 1, "baths": 1, "sqft": 640, "rent": 1950, "available": "2026-11-01" }
+                        ]
+                    },
+                    {
+                        "id": "p2",
+                        "name": "B2",
+                        "beds": 2,
+                        "baths": 2,
+                        "units": [{ "id": "u412", "name": "Unit 412", "beds": 2, "baths": 2, "sqft": 980, "rent": 2850, "available": "10/15/2026" }]
+                    }
+                ]
+            }
+        </script>
+    </body>
+</html>

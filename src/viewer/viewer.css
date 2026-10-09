@@ -1,0 +1,24 @@
+/* One photo, as large as the tab allows, on a dark ground. */
+html,
+body {
+    height: 100%;
+    margin: 0;
+    background: #111;
+    color: #9ca3af;
+    font: 14px system-ui, sans-serif;
+}
+
+body {
+    display: grid;
+    place-items: center;
+}
+
+#photo {
+    max-width: 100vw;
+    max-height: 100vh;
+    object-fit: contain;
+}
+
+.status {
+    margin: 0;
+}

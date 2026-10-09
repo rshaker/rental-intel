@@ -1,0 +1,205 @@
+/* The Search tab: the Sources tab's rows, each with a one-field form. */
+.search {
+    padding: 12px 16px;
+}
+
+.search .hint {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.search-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.search-form input {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 3px 8px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.search-form input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+}
+
+.search-status {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.search-status.bad {
+    color: var(--danger);
+}
+
+.search-status:empty {
+    display: none;
+}
+
+/* The +/- at the head of the status line folds the result list below it. */
+.search-fold {
+    width: 12px;
+    margin-right: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.search-fold:hover {
+    color: var(--fg);
+}
+
+/* "Hide", "Save URLs", "Add to listings" and "Clear" sit in the status line as links would. */
+.search-action {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: var(--muted);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.search-action:hover {
+    color: var(--fg);
+}
+
+/* A form's filters: a line that folds them, then one row per group -- a
+   fixed label column, and the group's fields starting on one line. */
+.search-filters-head {
+    display: flex;
+    gap: 12px;
+    margin-top: 6px;
+    font-size: 12px;
+}
+
+.search-filters-toggle {
+    text-decoration: none;
+}
+
+.search-filters {
+    margin-top: 4px;
+    font-size: 12px;
+}
+
+.search-filter-row {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 3px 0;
+}
+
+/* On the first line of the fields beside it: 12px text in a 22px control. */
+.search-filter-label {
+    color: var(--muted);
+    line-height: 22px;
+}
+
+.search-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    min-height: 22px;
+}
+
+.search-fields label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--muted);
+}
+
+.search-fields input,
+.search-fields select {
+    box-sizing: border-box;
+    height: 22px;
+    margin: 0;
+    padding: 0 6px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.search-fields input[type="number"] {
+    width: 72px;
+}
+
+.search-fields input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    max-width: 320px;
+}
+
+.search-fields select {
+    width: auto;
+    padding-right: 2px;
+}
+
+/* Ticks in columns: every box under the one above, every label beside its box. */
+.search-checks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    gap: 0 10px;
+}
+
+.search-checks label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    height: 22px;
+    cursor: pointer;
+}
+
+.search-checks input[type="checkbox"] {
+    flex: none;
+    width: 13px;
+    height: 13px;
+    margin: 0;
+}
+
+.search-checks span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.search-filters .hint {
+    margin: 4px 0 0;
+}
+
+.search-results {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+}
+
+.search-results li {
+    margin: 2px 0;
+    overflow-wrap: anywhere;
+}
+
+.search-facts {
+    color: var(--muted);
+}
+

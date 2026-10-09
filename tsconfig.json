@@ -1,0 +1,8 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "types": ["chrome", "vite/client", "@crxjs/vite-plugin/client"]
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist", "dist-e2e"]
+}

@@ -1,0 +1,84 @@
+/* Settings: the side panel's tab and the options page share this. */
+.settings {
+    padding: 4px 16px 32px;
+}
+
+.settings-section {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.settings-section h2 {
+    margin: 0 0 2px;
+    font-size: 13px;
+}
+
+.settings .hint {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.setting {
+    margin: 10px 0 0;
+}
+
+.setting label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* The control follows its label; the help line below says the unit. */
+.setting-label {
+    flex: initial;
+    min-width: 0;
+}
+
+.setting input[type="number"] {
+    width: 72px;
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+.setting input[type="checkbox"] {
+    width: auto;
+}
+
+.setting select {
+    width: auto;
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+.setting-help {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.settings-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 12px;
+}
+
+.settings-status {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* The options page: the same form, given a column to sit in. */
+.options {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 24px 16px;
+}
+
+.options h1 {
+    margin: 0 0 4px;
+    font-size: 18px;
+}
+

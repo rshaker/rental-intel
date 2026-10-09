@@ -1,0 +1,95 @@
+/* The Data tab: short groups of buttons, then the activity log taking the rest. */
+.data {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    /* The page scrolls rather than the tab; this fills the viewport below
+       the tab strip (13px text, 8px padding, 2px border, 1px line) so the
+       activity log can take whatever the groups above leave. */
+    min-height: calc(100vh / var(--ui-scale) - 41px);
+}
+
+.data-group h2 {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+}
+
+.data-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.data-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* The shared input rule stretches every input; a checkbox is not a field. */
+.data-option input {
+    width: auto;
+    margin: 0;
+}
+
+.data-size {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.paste-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* Both boxes hold JSON or a transcript: monospace, no wrapping, no handle. */
+.paste-area textarea,
+#activity {
+    font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre;
+    overflow: auto;
+    resize: none;
+}
+
+.data .data-status {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.data .confirm {
+    margin: 0;
+}
+
+.data-activity {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 10em;
+}
+
+.data-activity-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.data-activity-head h2 {
+    flex: 1;
+    margin: 0;
+}
+
+#activity {
+    flex: 1;
+    min-height: 0;
+}

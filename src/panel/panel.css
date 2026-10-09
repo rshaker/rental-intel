@@ -1,0 +1,1141 @@
+:root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --accent: #4f46e5;
+    --danger: #dc2626;
+    --surface: #f9fafb;
+    --tag: #eef2ff;
+    --button: #eef0f3;
+    --ok: #16a34a;
+    /* Site badges: each site its own colour, so a mixed list sorts by eye. */
+    --site-zillow: #2563eb;
+    --site-apartments: #ea580c;
+    /* Tallest an expanded card's photo may be. Wider photos never reach it;
+       a portrait one is letterboxed to it rather than cropped. */
+    --photo-max: 400px;
+    /* Height of the thumbnail row when photos are shown as a strip. */
+    --strip-height: 80px;
+    /* The narrowest the layout goes. Below this the page scrolls sideways
+       rather than squeezing labels and controls into each other; the value
+       is where the three control columns last fit side by side. */
+    --panel-min: 380px;
+    /* The Size setting, as a factor: the body is zoomed by it (scale.ts sets
+       it). Zoom multiplies viewport units along with everything else, so a
+       length meant to be a share of the panel divides by it. */
+    --ui-scale: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #16181d;
+        --fg: #e6e8eb;
+        --muted: #9ca3af;
+        --line: #2b2f36;
+        --accent: #818cf8;
+        --danger: #f87171;
+        --surface: #1d2026;
+        --tag: #262a3a;
+        --button: #2b2f36;
+        --ok: #4ade80;
+        --site-zillow: #60a5fa;
+        --site-apartments: #fb923c;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Several rows below are display: flex, which would otherwise beat the UA
+   stylesheet's display: none for [hidden] -- and the panel toggles all of
+   them with the hidden property. */
+[hidden] {
+    display: none !important;
+}
+
+body {
+    margin: 0;
+    min-width: var(--panel-min);
+    /* The whole panel at the chosen size. The minimum width scales with it,
+       as it would under the browser's zoom: a larger size wants a wider
+       panel, and scrolls sideways until it gets one. */
+    zoom: var(--ui-scale);
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Everything above the list stays pinned while it scrolls. */
+.head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+}
+
+/* The panel's tab strip: Listings | Search | Sources | Data | Options. */
+.tabs {
+    display: flex;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+.tabs button {
+    font: inherit;
+    font-size: 13px;
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 8px 10px;
+    cursor: pointer;
+}
+
+.tabs button[aria-selected="true"] {
+    color: var(--fg);
+    font-weight: 600;
+    border-bottom-color: var(--accent);
+}
+
+.tabs button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* The capture row: what saving the active tab would do right now. */
+.capture {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px 0;
+    font-size: 12px;
+}
+
+.capture .primary {
+    color: var(--fg);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+.capture-note {
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+.capture-note.ok {
+    color: var(--ok);
+}
+
+/* The filters are a card like a listing's: a header row that folds the rest. */
+.filters {
+    margin: 8px 16px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+}
+
+/* The foldable part, indented to the title so it reads as the card's body,
+   the way an open listing's does. */
+.filters-body {
+    padding: 0 12px 10px 36px;
+}
+
+/* The +/- that folds the control panel: - while open, + while folded. */
+.disclosure {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 15px;
+    line-height: 16px;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.disclosure::before {
+    content: "\2212";
+}
+
+.disclosure[aria-expanded="false"]::before {
+    content: "+";
+}
+
+.disclosure:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Reset sits in the title row as a link would, the way the Search tab's does. */
+.filters-reset {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.filters-reset:hover {
+    color: var(--fg);
+}
+
+/* What the folded controls are set to, in the space before Select. */
+.head-summary {
+    flex: 1;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The control panel: three columns -- labels, their controls, and the data
+   buttons -- laid out as two blocks so the third can wrap beneath the first
+   two when the panel is narrow. */
+/* The filters: rows of label + control, two columns where the panel is wide
+   enough for them, one column below that. */
+.controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 2px 24px;
+    font-size: 12px;
+}
+
+.row {
+    display: grid;
+    /* One fixed label column, so every control starts on the same line. Wide
+       enough for the longest label ("Status", "Images") at 12px. */
+    grid-template-columns: 56px 1fr;
+    /* Top, not centre: a body that wraps to two lines would otherwise leave
+       its label floating between them. */
+    align-items: start;
+    gap: 8px;
+    padding: 3px 0;
+}
+
+.row-label {
+    color: var(--muted);
+    /* Sits on the first line of the body: the controls there are 12px text
+       inside 2px padding and a 1px border, so this lines the two up. */
+    padding-top: 3px;
+}
+
+.row-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.row-body .push {
+    margin-left: auto;
+}
+
+/* A body that stacks: each .group is one line of controls, all left-aligned. */
+.row-body.stack {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.row-body label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted);
+}
+
+.row-body select {
+    width: auto;
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+.row-body input[type="number"] {
+    width: 64px;
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+.topbar h1 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.count,
+.empty {
+    color: var(--muted);
+}
+
+/* Small filled button used throughout the header. */
+.tool {
+    font: inherit;
+    font-size: 12px;
+    color: var(--fg);
+    background: var(--button);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 2px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tool[aria-pressed="true"] {
+    color: var(--fg);
+    background: var(--surface);
+    font-weight: 600;
+}
+
+/* A one-glyph tool button: expand all, collapse all. */
+.tool.icon {
+    padding: 0 5px;
+    font-size: 14px;
+    line-height: 18px;
+}
+
+.tool:disabled {
+    color: var(--muted);
+    cursor: default;
+}
+
+.tool.danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.tool.danger:disabled {
+    color: var(--muted);
+    border-color: var(--line);
+}
+
+/* The list's toolbar, under the controls. */
+.list-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    font-size: 12px;
+    border-top: 1px solid var(--line);
+}
+
+.list-tools .push {
+    margin-left: auto;
+}
+
+/* The master checkbox, then "Select", the button that opens the menu. */
+.master {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#select-master {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.menu-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+    font: inherit;
+    color: var(--muted);
+    background: transparent;
+    cursor: pointer;
+}
+
+.menu-button:hover,
+.menu-button[aria-expanded="true"] {
+    color: var(--fg);
+}
+
+/* The caret after the word. */
+.menu-button::after {
+    content: "";
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
+}
+
+.menu-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-radius: 4px;
+}
+
+.menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 2;
+    min-width: 120px;
+    margin-top: 4px;
+    padding: 4px 0;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+}
+
+.menu button {
+    display: block;
+    width: 100%;
+    padding: 4px 12px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--fg);
+    text-align: left;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+
+.menu button:hover,
+.menu button:focus-visible {
+    background: var(--surface);
+    outline: none;
+}
+
+.data-status {
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+.confirm {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.root {
+    padding: 12px 16px 32px;
+}
+
+.empty {
+    text-align: center;
+    padding: 32px 0;
+}
+
+.card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background: var(--surface);
+}
+
+.card.active {
+    border-color: var(--accent);
+}
+
+/* The always-visible header doubles as the expand toggle. */
+.summary {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+
+.summary::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin-top: 7px;
+    border-right: 1.5px solid var(--muted);
+    border-bottom: 1.5px solid var(--muted);
+    transform: rotate(-45deg);
+    transition: transform 120ms ease;
+}
+
+.card.open .summary::before {
+    transform: rotate(45deg);
+}
+
+/* The header is a div playing button, so it draws its own focus ring. */
+.summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: 8px;
+}
+
+/* The row runs checkbox, chevron, tags, text. Flex order is what puts the
+   checkbox ahead of the chevron: the chevron is the summary's ::before, which
+   would otherwise come first. */
+.check {
+    order: 0;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    margin: 3px 0 0;
+    padding: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.summary::before {
+    order: 1;
+}
+
+.badges {
+    order: 2;
+}
+
+.summary-text {
+    order: 3;
+}
+
+.card.selected {
+    border-color: var(--accent);
+    background: var(--tag);
+}
+
+.summary-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* A closed card is one row: title, then the facts, each clipped with an
+   ellipsis rather than wrapping, so a long list scans like a table. The
+   open card keeps the two-line header -- it has the room, and the full
+   address is worth reading once you are looking at that one. */
+.card:not(.open) .summary {
+    padding: 6px 12px;
+    align-items: center;
+}
+
+.card:not(.open) .summary::before {
+    margin-top: 0;
+}
+
+.card:not(.open) .check {
+    margin-top: 0;
+}
+
+.card:not(.open) .kind,
+.card:not(.open) .badges {
+    margin-top: 0;
+}
+
+/* The closed rows read as a table: the kind tag takes one width whatever it
+   says, the site tag already does, so every title starts on the same line
+   and the facts end on the same one. */
+.card:not(.open) .kind {
+    box-sizing: border-box;
+    width: 62px;
+    white-space: nowrap;
+}
+
+.card:not(.open) .summary-text {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.card:not(.open) h2 {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    overflow-wrap: normal;
+}
+
+.card:not(.open) h2 .title {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* The facts are the values a list is scanned for (price, beds), so they read
+   as a right-aligned column that keeps its full text; the title is what gives
+   way. The closed row shows the short form only; the open header the full. */
+/* Doubled selector: the plain .facts rule below would otherwise tie and win. */
+.facts.facts-short {
+    display: none;
+}
+
+.card:not(.open) .facts:not(.facts-short) {
+    display: none;
+}
+
+.card:not(.open) .facts-short {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: 65%;
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.card:not(.open) {
+    margin-bottom: 6px;
+}
+
+/* In a narrow panel the kind tag is the one thing on a closed row that can
+   go: the short facts already say which kind it is (a range and plans, or
+   beds and baths), and the title needs the room more. */
+.root {
+    container-type: inline-size;
+}
+
+@container (max-width: 520px) {
+    .card:not(.open) .kind,
+    .card:not(.open) .source-badge {
+        display: none;
+    }
+}
+
+.card h2 {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 0 2px;
+    overflow-wrap: anywhere;
+}
+
+.kind {
+    flex: none;
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--tag);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-top: 1px;
+}
+
+.facts {
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.body {
+    padding: 0 12px 12px;
+}
+
+.photo {
+    margin: 0 0 10px;
+}
+
+.photo img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: var(--photo-max);
+    object-fit: contain;
+    border-radius: 6px;
+}
+
+.carousel-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.carousel-nav button {
+    font: inherit;
+    font-size: 16px;
+    line-height: 1;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.carousel-counter {
+    color: var(--muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Thumbnail mode: every photo in one row that scrolls sideways, in place of
+   the carousel. `position: relative` makes each thumb's offsetLeft relative
+   to the strip, which is what keeps the current one scrolled into view. */
+.strip {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    margin: 0 0 10px;
+    padding-bottom: 4px;
+}
+
+.thumb {
+    flex: 0 0 auto;
+    height: var(--strip-height);
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.thumb img {
+    display: block;
+    height: calc(var(--strip-height) - 4px);
+    width: auto;
+    border-radius: 4px;
+}
+
+.thumb.current {
+    border-color: var(--accent);
+}
+
+/* The line under the photos with what the title does not say: a building's
+   address, a home's building, the map link. */
+.brief {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+/* Status on its own line, then the fold toggles on one line. */
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.status-row .status-select {
+    width: auto;
+    padding: 3px 8px;
+    font-size: 12px;
+}
+
+.status-row .push {
+    margin-left: auto;
+}
+
+.fold-all {
+    display: inline-flex;
+    gap: 4px;
+}
+
+/* One folded section: its title row, then its body. */
+.fold {
+    margin-top: 8px;
+}
+
+select,
+textarea,
+input {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+
+textarea {
+    min-height: 64px;
+    resize: vertical;
+}
+
+/* Notes start one line tall (rows="1"); the handle pulls it taller, never
+   shorter than that line: one line of text plus the padding and border. */
+textarea.notes {
+    line-height: 1.5;
+    min-height: calc(1.5em + 12px + 2px);
+}
+
+/* Adding a link: one field and a + beside it. */
+.link-add {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+}
+
+.link-add input {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.link-add input[aria-invalid="true"] {
+    border-color: var(--danger);
+}
+
+.link-error {
+    margin: 4px 0 0;
+    color: var(--danger);
+    font-size: 12px;
+}
+
+/* Notes and links fold behind a +/- toggle. */
+.field-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    color: var(--muted);
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+}
+
+.toggle-glyph {
+    display: inline-block;
+    width: 12px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.toggle-hint {
+    font-size: 11px;
+}
+
+/* A section's contents: a lighter surface, inset from the card edge to sit
+   under the title text (the glyph's 12px plus its 6px gap), padded 10px. */
+.fold-body {
+    margin: 4px 0 0 8px;
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.field-body {
+    margin: 0;
+}
+
+.links {
+    list-style: none;
+    margin: 0 0 4px;
+    padding: 0;
+}
+
+.links li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-wrap: anywhere;
+}
+
+.links li a {
+    min-width: 0;
+}
+
+.link-remove {
+    flex: none;
+    line-height: 16px;
+}
+
+/* A button that reads as a link: it goes to another card, not a URL. */
+.jump {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+    text-align: left;
+}
+
+/* The address of the link under the pointer, bottom left, as a browser shows it. */
+.link-preview {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    z-index: 3;
+    max-width: 75%;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 0;
+    border-bottom: 0;
+    border-radius: 0 6px 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+
+/* A link's label stays on one line; it wraps as a whole. */
+.jump,
+a.go {
+    white-space: nowrap;
+}
+
+/* A row of link icons: web, card, map. Icons, not words, so no underline. */
+.link-icons {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.link-icons .icon {
+    text-decoration: none;
+    font-size: 13px;
+    line-height: 1;
+}
+
+.link-icons .icon:hover {
+    filter: brightness(1.15);
+}
+
+/* A place there is no link for: the icon stays, drained of colour. */
+.link-icons .icon.off {
+    filter: grayscale(1);
+    opacity: 0.35;
+    cursor: default;
+}
+
+.jump:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+/* A building's units, in the site's order, with the saved ones marked. */
+.units {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.units li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
+    padding: 2px 0;
+}
+
+.unit-facts {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* A unit the site knows of but is not renting: still listed, still linked, dimmed. */
+.units li.unit-off {
+    opacity: 0.6;
+}
+
+.unit-tag {
+    font-size: 11px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--tag);
+    color: var(--muted);
+}
+
+/* Scraped data, below the user's fields: a heading per block. */
+.section {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 14px 0 4px;
+}
+
+.details {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 2px 12px;
+    margin: 0;
+    font-size: 12px;
+}
+
+.details dt {
+    color: var(--muted);
+}
+
+.details dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.plans {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.plans th,
+.plans td {
+    text-align: left;
+    padding: 3px 6px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+}
+
+.plans th {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.plans td:first-child {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.plans .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.description {
+    margin: 0;
+    white-space: pre-line;
+}
+
+a {
+    color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+   Additions for the multi-source panel: the search box, the source badge on
+   every card, the "also on" line, and the Sources tab.
+   -------------------------------------------------------------------------- */
+
+/* The search box sits under the title, full width, always visible. */
+.search-row {
+    padding: 0 0 8px;
+}
+
+#search {
+    width: 100%;
+    margin: 0;
+    padding: 5px 8px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--fg);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+#search:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+}
+
+/* The two tags before a summary row's text: the kind, then the site. */
+.badges {
+    flex: none;
+    display: flex;
+    gap: 4px;
+    margin-top: 1px;
+}
+
+.badges .kind {
+    margin-top: 0;
+}
+
+/* The site tag doubles as the link to the listing's page. It shows the
+   site's three-letter code, centred in one fixed width, so the titles line
+   up. */
+.source-badge {
+    flex: none;
+    box-sizing: border-box;
+    width: 38px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, currentColor 55%, transparent);
+    border-radius: 4px;
+    padding: 0;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.source-badge:hover {
+    text-decoration: underline;
+}
+
+.source-badge.source-zillow {
+    color: var(--site-zillow);
+}
+
+.source-badge.source-apartments {
+    color: var(--site-apartments);
+}
+
+/* "Also on Zillow", "In The Juniper": a sibling or a building, with its links. */
+.also {
+    white-space: nowrap;
+}
+
+/* Amenities: a plain list, two columns when there is room. */
+.amenities {
+    margin: 0;
+    padding: 0 0 0 18px;
+    columns: 2;
+    column-gap: 16px;
+    font-size: 12px;
+}
+
+.pets {
+    margin: 0 0 6px;
+    font-size: 12px;
+}
+

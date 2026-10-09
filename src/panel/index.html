@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Rental Intel</title>
+        <!-- The Size setting, before the first paint. Ahead of the stylesheet
+             so it does not wait for it; public/scale-boot.js says why. -->
+        <script src="/scale-boot.js"></script>
+        <link rel="stylesheet" href="./panel.css" />
+    </head>
+    <body>
+        <!-- The panel is a Preact app (src/panel/components/App.tsx). -->
+        <div id="app"></div>
+        <script type="module" src="./main.tsx"></script>
+    </body>
+</html>
