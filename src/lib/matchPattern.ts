@@ -1,13 +1,4 @@
-/**
- * Chrome match patterns (`*://*.example.com/*`) as predicates over URLs, the
- * way Chrome reads them: scheme, host and path each match separately, `*`
- * in the host stands for any run of subdomains including none, and `*` in
- * the path stands for anything.
- *
- * Pure string logic. The worker uses it to pick which tabs to inject into
- * and the panel to tell which source a URL belongs to; neither may guess
- * differently from how Chrome will apply the same pattern.
- */
+/** Chrome match patterns (`*://*.example.com/*`) as predicates over URLs, read the way Chrome reads them. */
 
 const cache = new Map<string, RegExp | null>();
 

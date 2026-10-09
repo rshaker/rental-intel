@@ -34,11 +34,7 @@ export function hasHeading(doc: Document, minLength = 3): boolean {
     return [...doc.querySelectorAll("h1")].some((h1) => (clean(h1.textContent)?.length ?? 0) >= minLength);
 }
 
-/**
- * Image URLs on the page whose src (or lazy-load data attribute) is on one of
- * `hosts` (bare hostnames, subdomains included). The DOM fallback's only
- * source of photos, and a last resort for a page whose payload has none.
- */
+/** Image URLs on the page whose src or lazy-load attribute is on one of `hosts`. */
 export function imageUrls(doc: Document, hosts: readonly string[]): string[] {
     const urls = new Set<string>();
     for (const img of doc.querySelectorAll("img")) {

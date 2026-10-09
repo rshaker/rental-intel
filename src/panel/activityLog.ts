@@ -1,13 +1,7 @@
 import { signal, type ReadonlySignal } from "@preact/signals";
 import { readStored, store } from "./store";
 
-/**
- * The Data tab's activity log: what the extension did with data and what
- * went wrong anywhere, one timestamped line each, newest last. It outlives
- * the panel: the lines are kept in localStorage, capped, so a result seen
- * once can be found again after the panel was closed. The Data tab shows
- * the lines in a textarea, so a run's transcript copies as ordinary text.
- */
+/** The Data tab's activity log: one timestamped line per event, kept in localStorage, capped. */
 
 const KEY = "intel.panel.activity";
 const MAX_LINES = 400;
@@ -31,7 +25,6 @@ export function createActivityLog(now: () => Date = () => new Date()): ActivityL
         lines,
         say(text, kind = "info") {
             const stamp = now().toTimeString().slice(0, 8);
-            // A multi-line message keeps its shape; its later lines are indented under the stamp.
             const body = `${MARK[kind]}${text}`.split("\n").join("\n          ");
             const next = [...lines.value, `${stamp}  ${body}`];
             lines.value = next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next;

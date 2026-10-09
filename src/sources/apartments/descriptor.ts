@@ -1,15 +1,11 @@
 import type { SourceDescriptor } from "../contract.js";
 import { apartmentsSearch, apartmentsUrls } from "./urls.js";
 
-/**
- * apartments.com (CoStar). Listing pages are full document loads. One host
- * pattern covers the pages and the photo CDN (images1.apartments.com), so
- * enabling the source is one grant.
- */
+/** apartments.com. One host pattern covers the pages and the photo CDN. */
 export const apartments = {
     id: "apartments",
     label: "Apartments.com",
-    code: "APT",
+    abbreviation: "APT",
     homepage: "https://www.apartments.com/",
     hosts: {
         pages: ["*://*.apartments.com/*"],

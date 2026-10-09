@@ -4,21 +4,12 @@ import { useEffect, useRef } from "preact/hooks";
 import { clearAll, exportBackup, importBackup } from "../../db/backup";
 import { backupFilename, parseBackup, serializeBackup, type Backup } from "../../db/backupFormat";
 import { activity, type LogKind } from "../activityLog";
-import { errorText } from "../dom";
-import { bytesText, plural } from "../format";
+import { bytesText, errorText, plural } from "../format";
 import { liveListings, livePhotoCount } from "../live";
 import { saveTextAs } from "../saveFile";
 import { readStored, store } from "../store";
 
-/**
- * The Data tab: back up, restore, Load URLs, Clear all, and the activity
- * log. Every write here changes the database under every open card, so
- * each path ends by telling the host (`onChanged`), which forgets per-card
- * state, tells the other contexts and redraws.
- *
- * The one-line status under the buttons is also written to the activity
- * log, so a result is both seen at once and kept.
- */
+/** The Data tab: back up, restore, Load URLs, Clear all, and the activity log. A write that replaces the database tells the host (`onChanged`). */
 
 const INCLUDE_PHOTOS_KEY = "intel.panel.exportPhotos";
 
@@ -73,12 +64,7 @@ export function DataPane({ onLoadUrls, onChanged }: DataPaneProps) {
         return () => document.removeEventListener("keydown", onKey);
     });
 
-    /**
-     * The backup as text, with or without the photo bytes. Without them a
-     * backup is a few hundred kB instead of tens of MB -- fit for the
-     * clipboard, and restorable onto a database that still has the photos,
-     * since an import replaces listings by id and leaves photo rows alone.
-     */
+    /** The backup as text, with or without the photo bytes; without them it fits the clipboard. */
     const serialize = async (): Promise<{ text: string; backup: Backup }> => {
         const full = await exportBackup();
         const backup: Backup = includePhotos.value ? full : { ...full, photos: [], listingPhotos: [] };
@@ -93,8 +79,7 @@ export function DataPane({ onLoadUrls, onChanged }: DataPaneProps) {
         const name = backupFilename(new Date());
         const made: { backup: Backup | null } = { backup: null };
         try {
-            // The dialog opens first, inside the click that allows it; the
-            // database is read only once a place was chosen.
+            // The dialog opens first, inside the click that allows it.
             const outcome = await saveTextAs(name, async () => {
                 const serialized = await serialize();
                 made.backup = serialized.backup;
@@ -325,7 +310,7 @@ function ActivityBox({ onCopy }: { onCopy(): void }) {
                 value={text}
                 onScroll={(event) => {
                     const el = event.currentTarget;
-                    // Auto-scroll only while the reader is at the end; scrolling up to read an older run must not be undone by the next line.
+                    // Auto-scroll only while the reader is at the end.
                     pinned.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
                 }}
             />

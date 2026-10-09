@@ -1,12 +1,6 @@
 import { expect, fixtureHtml, openPanel, test, waitForContentScript, workerOf } from "../harness/extension";
 
-/**
- * Zillow, the second source, through the same panel: a home and a building
- * from the real (trimmed) captures, the building's units, and the
- * single-page-app path -- a pushState between URLs with no document load,
- * which the panel notices through tabs.onUpdated and answers by asking the
- * tab again. That last one is what replaced the old webNavigation permission.
- */
+/** Zillow through the panel: a home and a building from trimmed captures, the building's units, and the single-page-app paths. */
 
 const HOME_URL = "https://www.zillow.com/homedetails/710-E-Dean-Keeton-St-111-Austin-TX-78705/450233440_zpid/";
 const BUILDING_URL = "https://www.zillow.com/apartments/austin-tx/lenox-grand/CmB93F/";
@@ -61,7 +55,7 @@ test("captures a home and a building, and relates the building's units", async (
     await expect(building.locator(".units li").first().locator("a.icon")).toHaveAttribute("href", "https://www.zillow.com/homedetails/2056262621_zpid/");
 
     const worker = await workerOf(context);
-    const stored = await worker.evaluate(async () => (await __intel!.list!()).map((l) => [l.sourceId, l.kind, l.core.plans.length]).sort());
+    const stored = await worker.evaluate(async () => (await __intel!.db.listings.toArray()).map((l) => [l.sourceId, l.kind, l.core.plans.length]).sort());
     expect(stored).toEqual([
         ["450233440", "home", 0],
         ["CmB93F", "building", 9],
@@ -77,8 +71,7 @@ test("a pushState between URLs is noticed without a document load", async ({ con
     const button = panel.locator("#capture-button");
     await expect(button).toHaveText("Add listing", { timeout: 10_000 });
 
-    // The URL leaves the listing; the DOM does not change at all, so only the
-    // panel's tab watcher can see it. The listing is withdrawn.
+    // The URL leaves the listing with no DOM change; the listing is withdrawn.
     await page.evaluate((url) => history.pushState({}, "", url), SEARCH_URL);
     await expect(button).toHaveText("Try to capture", { timeout: 10_000 });
 
@@ -96,9 +89,7 @@ test("a replaceState of the current URL, as Next.js does after hydrating, change
     const button = panel.locator("#capture-button");
     await expect(button).toHaveText("Add listing", { timeout: 10_000 });
 
-    // Chrome reports this to the tabs API as a load with no new URL. The
-    // content script sees nothing (no URL change, no popstate) and must not
-    // be needed: the panel keeps what it was told.
+    // Chrome reports this as a load with no new URL; the panel keeps what it was told.
     await page.evaluate(() => history.replaceState(history.state, "", location.href));
     await page.waitForTimeout(1_500);
     await expect(button).toHaveText("Add listing");
@@ -117,11 +108,7 @@ test("moving the tab from a saved building to an unsaved home never says the wro
     await expect(panel.locator("#capture-note")).toHaveText(/^Saved\./);
     await expect(button).toHaveText("Re-capture");
 
-    // The panel's own web links navigate the tab beside it. From here the
-    // row may say the page is being looked at, then what it found; it must
-    // not say "No listing confirmed" (the answer was dropped before anyone
-    // spoke) nor "Re-capture" (the outgoing page's answer, taken for the new
-    // page's).
+    // The row may say the page is being looked at, then what it found; never "No listing confirmed" nor the outgoing page's "Re-capture".
     const states: string[] = [];
     const watch = (async () => {
         for (let i = 0; i < 100; i++) {
@@ -141,10 +128,7 @@ test("moving the tab from a saved building to an unsaved home never says the wro
 });
 
 test("a tab that moved between listings in-page is read through the router bridge", async ({ context, extensionId }) => {
-    // The home fixture -- whose __NEXT_DATA__ describes 450233440 -- served
-    // at another listing's URL, with a router that, as Zillow's does after an
-    // in-page navigation, holds the current listing's props. The page-world
-    // helper copies them into the document; the content script reads them.
+    // The home fixture served at another listing's URL, with a router holding the current listing's props as Zillow's does after an in-page move.
     const STALE_URL = "https://www.zillow.com/homedetails/1-Bridge-St-Austin-TX-78701/999999999_zpid/";
     await context.addInitScript(() => {
         const property = { zpid: 999999999, price: 4321, bedrooms: 3, bathrooms: 2, livingArea: 1200, homeType: "CONDO", address: { streetAddress: "1 Bridge St", city: "Austin", state: "TX", zipcode: "78701" }, originalPhotos: [] };
@@ -162,8 +146,7 @@ test("a tab that moved between listings in-page is read through the router bridg
     const panel = await openPanel(context, extensionId, 0);
     await page.bringToFront();
 
-    // The document's canonical link still names the first listing, so the
-    // page is not confirmed; a forced parse reads the router's state.
+    // The canonical link still names the first listing, so the page is not confirmed; a manual capture reads the router's state.
     const button = panel.locator("#capture-button");
     await expect(button).toHaveText("Try to capture");
     await expect.poll(() => page.locator("#__intel_zillow_state").count(), { timeout: 10_000 }).toBe(1);
@@ -215,9 +198,7 @@ test("captures the older /b/ building shape, units and all", async ({ context, e
     // The site gives this lot no name, so the card is titled by its address.
     await expect(card.locator(".title")).toHaveText("710 E Dean Keeton St, Austin, TX 78705");
 
-    // Show card opens the active tab's card, closed or not, and brings it
-    // into view. Before the panel comes to the front: then the active tab
-    // is the panel itself, and there is nothing to show.
+    // Show card opens the active tab's card and brings it into view.
     await card.locator("h2 .title").click();
     await expect(card).not.toHaveClass(/open/);
     await panel.locator("#locate-button").click();
@@ -232,10 +213,7 @@ test("captures the older /b/ building shape, units and all", async ({ context, e
 });
 
 test("a listing tab with no content script is given one by the capture button", async ({ context, extensionId }) => {
-    // What an extension reload leaves in an open tab, or a tab Chrome put to
-    // sleep and woke without its scripts: the page is a listing, the source
-    // is on, and nobody answers. Taking the registration away before the
-    // load reproduces that exactly.
+    // What an extension reload leaves in an open tab: the page is a listing, the source is on, and nobody answers.
     const worker = await workerOf(context);
     const ids = ["source:zillow", "source:zillow:main"];
     await expect.poll(() => worker.evaluate(async (ids) => (await chrome.scripting.getRegisteredContentScripts({ ids })).length, ids)).toBe(2);
@@ -250,8 +228,7 @@ test("a listing tab with no content script is given one by the capture button", 
     await expect(button).toHaveText("Try to capture");
     await expect(note).toHaveText("No listing confirmed on this tab.");
 
-    // The button puts a script there, reads the page, and the script goes on
-    // to confirm the listing like any other, so the row settles on "saved".
+    // The button puts a script there and reads the page.
     await button.click();
     await expect(note).toHaveText(/^Saved\./);
     await expect(button).toHaveText("Re-capture", { timeout: 10_000 });

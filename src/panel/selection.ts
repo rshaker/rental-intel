@@ -2,12 +2,7 @@ import { signal } from "@preact/signals";
 import type { Listing } from "../db/types";
 import { rangeBetween } from "./query";
 
-/**
- * The selection: which cards are ticked, where a shift-range starts, and
- * whether Delete is awaiting confirmation. Only ever covers what is on
- * screen; the list prunes it when a filter or sort hides a card. Not
- * persisted.
- */
+/** The selection: which cards are ticked, where a shift-range starts, and whether Delete awaits confirmation. Covers only what is on screen; not persisted. */
 
 export const selected = signal<ReadonlySet<string>>(new Set());
 /** The last plain-clicked card: where a shift-click range starts. */
@@ -26,11 +21,7 @@ export function selectAllVisible(): void {
     selected.value = new Set(visibleIds.value);
 }
 
-/**
- * The master checkbox's menu: the selection becomes exactly the on-screen
- * listings matching the choice. `all` and `none` are the two ends; a kind or
- * a status picks a subset, as Gmail's Read / Starred do.
- */
+/** The master checkbox's menu: the selection becomes the on-screen listings matching the choice. */
 export function selectWhere(choice: string, byId: ReadonlyMap<string, Listing>): void {
     const keep = (listing: Listing): boolean =>
         choice === "all" ? true
@@ -59,7 +50,7 @@ export function toggleSelected(id: string, shift: boolean): void {
     selected.value = next;
 }
 
-/** Drops whatever a filter or sort change has just hidden: Delete must never touch it. */
+/** Drops whatever a filter or sort change has just hidden. */
 export function pruneSelection(visible: ReadonlySet<string>): void {
     if ([...selected.value].every((id) => visible.has(id)) && (anchorId.value === null || visible.has(anchorId.value))) return;
     selected.value = new Set([...selected.value].filter((id) => visible.has(id)));

@@ -1,42 +1,18 @@
 /**
- * Turns a raw page capture into a committable fixture, and lays the site's
- * payloads out for reading.
+ * Turns a raw page capture into a committable fixture:
  *
  *   npm run capture:trim -- --source apartments work/captures/<name>.raw.html playwright/fixtures/apartments-building.html
  *
- * Writes:
- *   <fixture>            trimmed + scrubbed HTML, safe to commit
- *   work/captures/<fixture>.state.json
- *                        every payload block parsed and pretty-printed, for analysis
- *
- * What is kept is decided by the source's capture profile
- * (src/sources/<id>/capture.profile.mjs): which script blocks are payloads,
- * which elements are interesting, which attributes survive, which image
- * hosts count. The rest of the page -- styles, scripts, decoration, text
- * outside the interesting elements -- is dropped.
- *
- * What survives regardless, and why:
- *   head:  <title>, canonical, og:* meta, ld+json -- the probes read these
- *          on every site.
- *   body:  the *skeleton*: any element whose subtree holds an interesting
- *          element, with the other attributes stripped. Nesting is kept so
- *          selectors like '[data-field=plans] tr' still match.
- *
- * Scrubbing, in three layers, because a fixture ships with the repository:
- *   1. object keys in the payloads that look like account context (email,
- *      token, session, csrf, cookie, phone, guid, ...) are redacted;
- *   2. the serialised output is swept for the shapes that live outside
- *      JSON keys -- Zillow account ids (X1-ZU…), analytics ids assigned in
- *      inline scripts (anonymousId, customDimension1, cs_fpid, identify),
- *      tracking-pixel query ids (Bing sid/vid/mid, Teads user_session_id,
- *      screen size), Google API keys -- and tracking <img> beacons and
- *      "recent searches" history rows are dropped from the DOM;
- *   3. the script REFUSES to write when the page was captured logged in,
- *      when the git user's email survives, or when any line of the optional
- *      work/captures/denylist.txt (your own ids, addresses, zips; one per
- *      line, gitignored) survives.
- * Capture in a Guest window (tasks/capture-page.js). Still read a trimmed
- * fixture before committing it.
+ * Writes the trimmed, scrubbed fixture and work/captures/<fixture>.state.json
+ * with every payload block pretty-printed. The source's capture.profile.mjs
+ * says which script blocks are payloads, which elements and attributes
+ * survive and which image hosts count; the head keeps the title, canonical,
+ * og:* and ld+json that the checks read. Account and browser ids are
+ * redacted by key name and by shape, tracking pixels and history rows are
+ * dropped, and the script refuses to write when the page was captured
+ * logged in, when the git user's email survives, or when a line of the
+ * optional work/captures/denylist.txt survives. Capture in a Guest window
+ * (tasks/capture-page.js) and still read a fixture before committing it.
  */
 import { JSDOM } from "jsdom";
 import { execSync } from "node:child_process";
@@ -188,9 +164,7 @@ const INTERESTING = [profile.interesting, imageSelector, "script[type='applicati
 for (const node of document.body.querySelectorAll("script, style, svg, iframe, noscript, template, link")) {
     if (!blobs.some((b) => b.node === node) && !node.matches('script[type="application/ld+json"]')) node.remove();
 }
-// Site furniture the profile names as never wanted: promotional placards on a
-// home page, "nearby" carousels -- whatever would read as listings or places
-// without being the page's subject.
+// Elements the profile names as never wanted: promotional placards, "nearby" carousels.
 for (const node of profile.drop ? document.body.querySelectorAll(profile.drop) : []) node.remove();
 
 /**
@@ -251,7 +225,7 @@ for (const script of document.querySelectorAll('script[type="application/ld+json
     }
 }
 
-// -- tracking furniture: beacons and the visitor's own history -------------------
+// -- tracking: beacons and the visitor's own history -----------------------------
 
 // An <img> that is not a photo is a pixel: its URL carries visitor ids.
 const imageHosts = profile.imageHosts ?? [];

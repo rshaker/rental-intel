@@ -4,11 +4,7 @@ import { matchesAny } from "../lib/matchPattern";
 
 export type { SourceId } from "./descriptors";
 
-/**
- * The runtime registry: the sources this build carries, and the lookups every
- * context needs. Pure, so the worker, the panel and the tests share it. The
- * content scripts do not need it -- each one is built around its own source.
- */
+/** The sources this build carries, and the lookups every context needs. Pure. */
 export const SOURCES: readonly SourceDescriptor[] = sourceList(__E2E__);
 
 const BY_ID = new Map(SOURCES.map((source) => [source.id, source]));
@@ -31,12 +27,12 @@ export function hostsOf(source: SourceDescriptor): string[] {
     return [...new Set([...source.hosts.pages, ...source.hosts.photos])];
 }
 
-/** The label a source id is shown under, tolerating an id from a build that no longer has it. */
+/** The label a source id is shown under; an id from a build that no longer has it shows as itself. */
 export function sourceLabel(id: string): string {
     return BY_ID.get(id)?.label ?? id;
 }
 
-/** The three-letter code a source is tagged with on a card row; an unknown id shows its first three letters. */
-export function sourceCode(id: string): string {
-    return BY_ID.get(id)?.code ?? id.slice(0, 3).toUpperCase();
+/** The three-letter tag on a card row; an unknown id shows its first three letters. */
+export function sourceAbbreviation(id: string): string {
+    return BY_ID.get(id)?.abbreviation ?? id.slice(0, 3).toUpperCase();
 }

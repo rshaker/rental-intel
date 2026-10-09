@@ -9,7 +9,7 @@ export default {
     payloadSelectors: ['script[type="application/json"]', "script#__NEXT_DATA__", 'script[id*="state"]', 'script[id*="data"]'],
     /** Keep a payload in the fixture only when it looks like it describes the listing. */
     payloadKeep: /listing|rental|floorplan|model|unit/i,
-    /** Everything the probes and the extractor read, plus the attributes a redesign moves. */
+    /** Everything the checks and the extractor read, plus the attributes a redesign moves. */
     interesting:
         "[data-listingid], #propertyName, .propertyAddressContainer, .propertyAddress, .priceBedRangeInfo, .rentInfoDetail, " +
         "#pricingView, .pricingGridItem, .unitContainer, [data-rentalkey], [data-model], .rentLabel, .modelName, .detailsTextWrapper, " +

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_SCALE, SCALE_KEY, applyScale, bootScale, currentScale, neighbourScale, parseScale, scaleShortcut, steppedScale } from "./scale";
+import { DEFAULT_SCALE, SCALE_KEY, neighbourScale, parseScale, scale, scaleShortcut, steppedScale, watchScale } from "./scale";
 
 const key = (init: KeyboardEventInit) => new KeyboardEvent("keydown", init);
 
@@ -7,7 +7,7 @@ describe("the size setting", () => {
     beforeEach(() => {
         localStorage.clear();
         document.documentElement.style.removeProperty("--ui-scale");
-        applyScale(DEFAULT_SCALE);
+        scale.value = DEFAULT_SCALE;
     });
 
     it("accepts only the listed stops", () => {
@@ -35,23 +35,12 @@ describe("the size setting", () => {
         expect(scaleShortcut(key({ key: "a", metaKey: true }))).toBeNull();
     });
 
-    it("draws the size as the --ui-scale factor and mirrors it", () => {
-        applyScale("150");
-        expect(currentScale()).toBe("150");
+    it("draws the size as the --ui-scale factor and keeps it in localStorage", () => {
+        watchScale();
+        scale.value = "150";
         expect(document.documentElement.style.getPropertyValue("--ui-scale")).toBe("1.5");
         expect(localStorage.getItem(SCALE_KEY)).toBe("150");
         expect(steppedScale(1)).toBe("175");
         expect(steppedScale(0)).toBe("100");
-    });
-
-    it("boots from the mirror and ignores a damaged one", () => {
-        localStorage.setItem(SCALE_KEY, "125");
-        bootScale();
-        expect(currentScale()).toBe("125");
-        expect(document.documentElement.style.getPropertyValue("--ui-scale")).toBe("1.25");
-
-        localStorage.setItem(SCALE_KEY, "huge");
-        bootScale();
-        expect(currentScale()).toBe("125");
     });
 });

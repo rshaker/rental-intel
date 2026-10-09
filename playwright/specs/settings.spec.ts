@@ -3,20 +3,18 @@ import { seedListing } from "../harness/seed";
 import type { Page } from "@playwright/test";
 
 /**
- * End-to-end coverage of settings: the table is seeded with the registry's
- * defaults, the side panel's Settings tab and the options page both render
- * the registry and write through to the table, a value outside its bounds
- * is refused, the chosen tab survives a reload, and a setting actually
- * changes behaviour (a new listing's status). The registry itself and the
- * merge rules are pinned by src/db/settingsSchema.test.ts.
+ * Settings end to end: the table is seeded with the registry's defaults, the
+ * Options tab renders the registry and writes through, a value outside its
+ * bounds is refused, the chosen tab survives a reload, a setting changes
+ * behaviour (a new listing's status), the panel's size is drawn and stepped
+ * by the keyboard, and a Details row switch drops that row from every card.
  */
 
 const setting = (page: Page, key: string) => page.locator(`[data-setting="${key}"]`);
 
-test("settings are seeded, editable from the panel tab and the options page, bounded, and used", async ({ context, extensionId }) => {
+test("settings are seeded, editable, bounded, and used; the size is drawn and stepped", async ({ context, extensionId }) => {
     const worker = await workerOf(context);
-    const stored = () =>
-        worker.evaluate(async () => ({ rows: await __intel!.db!.settings.count(), settings: await __intel!.settings!.get() }));
+    const stored = () => worker.evaluate(async () => ({ rows: await __intel!.db.settings.count(), settings: await __intel!.getSettings() }));
 
     // A fresh database already holds every default.
     const fresh = await stored();
@@ -58,32 +56,23 @@ test("settings are seeded, editable from the panel tab and the options page, bou
 
     // A setting is used: a listing saved now starts out as "visited".
     const id = await seedListing(worker, { sourceId: "seeded01", url: "https://listings.example/l/seeded01/", rent: 1, core: { address: { line1: "1 Test St", unit: null, city: null, state: null, zip: null, text: "1 Test St" } } });
-    const status = await worker.evaluate(async (id) => (await __intel!.get!(id))?.user.status, id);
+    const status = await worker.evaluate(async (id) => (await __intel!.db.listings.get(id))?.user.status, id);
     expect(status).toBe("visited");
 
-    // The options page is the same form on its own page, and sees the same table.
-    const options = await context.newPage();
-    await options.goto(`chrome-extension://${extensionId}/src/options/index.html`);
-    await expect(options.locator("h1")).toHaveText("Rental Intel settings");
-    await expect(setting(options, "bulk.pace")).toHaveValue("5");
-    await setting(options, "bulk.maxConsecutiveFailures").fill("7");
-    await setting(options, "bulk.maxConsecutiveFailures").press("Tab");
+    // Reset puts everything back.
+    await setting(page, "bulk.maxConsecutiveFailures").fill("7");
+    await setting(page, "bulk.maxConsecutiveFailures").press("Tab");
     expect((await stored()).settings["bulk.maxConsecutiveFailures"]).toBe(7);
-
-    // Reset puts everything back, and the panel shows it.
-    await options.locator('[data-action="reset-settings"]').click();
-    await expect(options.locator(".settings-status")).toHaveText("Every setting is back to its default.");
-    await expect(setting(options, "bulk.pace")).toHaveValue("2");
-    expect((await stored()).settings).toEqual(fresh.settings);
-    await page.reload();
+    await page.locator('[data-action="reset-settings"]').click();
+    await expect(page.locator(".settings-status")).toHaveText("Every setting is back to its default.");
+    await expect(setting(page, "bulk.pace")).toHaveValue("2");
     await expect(setting(page, "bulk.maxConsecutiveFailures")).toHaveValue("3");
+    expect((await stored()).settings).toEqual(fresh.settings);
 
-    // The Size setting is drawn: the body is zoomed by it, which the options
-    // page publishes to the open panel at once, and the panel keeps it over a
-    // reload. The Load URLs dialog, sized in viewport units, still fits.
+    // The Size setting is drawn: the body is zoomed by it, and the panel keeps it over a reload. The Load URLs dialog, sized in viewport units, still fits.
     const scale = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--ui-scale").trim());
     expect(await scale()).toBe("1");
-    await setting(options, "appearance.scale").selectOption("150");
+    await setting(page, "appearance.scale").selectOption("150");
     await expect.poll(scale).toBe("1.5");
     expect(await page.evaluate(() => getComputedStyle(document.body).zoom)).toBe("1.5");
     await page.reload();
@@ -110,7 +99,7 @@ test("settings are seeded, editable from the panel tab and the options page, bou
     await page.keyboard.press("ControlOrMeta+Minus");
     await page.keyboard.press("ControlOrMeta+Minus");
     await expect.poll(scale).toBe("1.25");
-    await expect.poll(() => stored().then((s) => s.settings["appearance.scale"])).toBe("125");
+    expect(await page.evaluate(() => localStorage.getItem("intel.panel.scale"))).toBe("125");
     await page.locator('.tabs button[data-tab="options"]').click();
     await expect(setting(page, "appearance.scale")).toHaveValue("125");
     await page.keyboard.press("ControlOrMeta+Digit0");
@@ -128,13 +117,13 @@ test("settings are seeded, editable from the panel tab and the options page, bou
     await card.locator("h2 .title").click();
     await card.locator(".field-toggle", { hasText: "Details" }).click();
     const terms = () => card.locator(".details dt").allTextContents();
-    expect(await terms()).toEqual(["Address", "Rent", "Source", "Read from", "Saved", "Updated", "Captured"]);
+    expect(await terms()).toEqual(["Address", "Rent", "Source", "Source data", "Saved", "Updated", "Captured"]);
     await page.locator('.tabs button[data-tab="options"]').click();
     await setting(page, "details.source").uncheck();
     await setting(page, "details.saved").uncheck();
     await page.locator('.tabs button[data-tab="listings"]').click();
-    await expect.poll(terms).toEqual(["Address", "Rent", "Read from", "Updated", "Captured"]);
+    await expect.poll(terms).toEqual(["Address", "Rent", "Source data", "Updated", "Captured"]);
     // The card and its Details section are open across the reload.
     await page.reload();
-    await expect.poll(terms).toEqual(["Address", "Rent", "Read from", "Updated", "Captured"]);
+    await expect.poll(terms).toEqual(["Address", "Rent", "Source data", "Updated", "Captured"]);
 });

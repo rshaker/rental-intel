@@ -1,15 +1,9 @@
 import { signal } from "@preact/signals";
 import { SOURCES, hostsOf } from "../sources";
 import type { SourceDescriptor } from "../sources/contract";
-import type { SourceId } from "../sources/descriptors";
-import { errorText } from "./dom";
+import { errorText } from "./format";
 
-/**
- * Which sources are enabled: those whose hosts Chrome has granted. Read
- * once, and again on every grant change from wherever it came (the Sources
- * tab, chrome://extensions, another panel). The worker hears the same
- * events and registers the content scripts.
- */
+/** Which sources are enabled: those whose hosts Chrome has granted, refreshed on every grant change. */
 
 export const enabledSources = signal<ReadonlySet<string>>(new Set());
 
@@ -20,21 +14,12 @@ export function isEnabled(source: SourceDescriptor): boolean {
     return enabledSources.value.has(source.id);
 }
 
-export function enabledIds(): SourceId[] {
-    return SOURCES.filter(isEnabled).map((source) => source.id as SourceId);
-}
-
 export async function refreshGrants(): Promise<void> {
     const flags = await Promise.all(SOURCES.map((source) => chrome.permissions.contains({ origins: hostsOf(source) })));
     enabledSources.value = new Set(SOURCES.filter((_, i) => flags[i]).map((source) => source.id));
 }
 
-/**
- * Asks Chrome for a source's hosts, or gives them back. Must run inside the
- * user's click: chrome.permissions.request needs the gesture. Disabling is
- * only possible for optional permissions; a test build declares them as
- * required, and the row says so instead of failing silently.
- */
+/** Asks Chrome for a source's hosts, or gives them back. Must run inside the user's click. A test build declares the hosts as required, and the row says so. */
 export async function toggleSource(source: SourceDescriptor): Promise<void> {
     const origins = hostsOf(source);
     const notes = new Map(grantNotes.value);

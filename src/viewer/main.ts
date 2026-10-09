@@ -2,17 +2,7 @@ import { getListing } from "../db/listings";
 import { getPhotos } from "../db/photos";
 import { displayName } from "../db/types";
 
-/**
- * Full-size photo page: `index.html?id=<listingId>&n=<photo index>`. The side
- * panel navigates the active tab here when a thumbnail is clicked, so the
- * photo is a history entry and Back returns to the listing.
- *
- * It reads the blob from the database itself rather than being handed an
- * object URL: this page runs in the extension origin, so it sees the same
- * IndexedDB as the panel and the worker, and its URL stays valid for Back,
- * Forward, reload and bookmarks -- an object URL minted by the panel would
- * die with the card that made it.
- */
+/** Full-size photo page, `index.html?id=<listingId>&n=<photo index>`, opened in the active tab from a thumbnail so Back returns to the listing. Reads the blob from the database itself. */
 
 const img = document.querySelector<HTMLImageElement>("#photo")!;
 const status = document.querySelector<HTMLElement>("#status")!;

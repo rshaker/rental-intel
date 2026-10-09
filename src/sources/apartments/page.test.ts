@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { detectListing, extractCapture } from "../../content/detect";
+import { detectListing, manualCapture } from "../../content/detect";
 import { apartmentsPage, placardAddress } from "./page";
-import { driveSearch, firstSuggestion, searchFailure } from "./search";
+import { firstSuggestion, searchFailure, submitSiteSearch } from "./search";
 import type { ApartmentsDetail } from "./types";
 
 /**
@@ -31,8 +31,8 @@ describe("apartments.com community page (captured)", () => {
     it("is confirmed, with the JSON-LD node claiming the URL's key", () => {
         const detection = detectListing(apartmentsPage, doc, url);
         expect(detection.confirmed).toBe(true);
-        expect(detection.signals.find((s) => s.name === "jsonld")?.claim).toBe("th59pbc");
-        expect(detection.signals.map((s) => [s.name, s.present])).toEqual([
+        expect(detection.results.find((s) => s.name === "jsonld")?.matchedId).toBe("th59pbc");
+        expect(detection.results.map((s) => [s.name, s.matched])).toEqual([
             ["jsonld", true],
             ["canonical", true],
             ["og:url", true],
@@ -46,10 +46,10 @@ describe("apartments.com community page (captured)", () => {
     });
 
     it("reads the place from the JSON-LD and the pricing grid into models and units", () => {
-        const capture = extractCapture(apartmentsPage, doc, url)!;
+        const capture = manualCapture(apartmentsPage, doc, url)!;
         expect(capture.kind).toBe("building");
         expect(capture.partial).toBe(false);
-        expect(capture.via).toBe("jsonld+dom");
+        expect(capture.readMethod).toBe("jsonld+dom");
         expect(capture.core.name).toBe("Marq Uptown");
         expect(capture.core.address).toEqual({ line1: "3320 Harmon Ave", unit: null, city: "Austin", state: "TX", zip: "78705", text: "3320 Harmon Ave, Austin, TX 78705" });
         expect(capture.core.geo).toEqual({ lat: 30.29208, lng: -97.72323 });
@@ -75,6 +75,8 @@ describe("apartments.com community page (captured)", () => {
         expect(capture.core.description).toMatch(/^Live close to class/);
         expect(capture.core.amenities).toContain("Pool");
         expect(capture.core.amenities).toContain("24-Hour Fitness Center");
+        // The shared feature vocabulary, from the amenity labels and the pets and parking tabs.
+        expect(capture.core.features).toEqual(["smallDogs", "largeDogs", "cats", "laundryInUnit", "dishwasher", "airConditioning", "hardwood", "parking", "elevator", "gym", "pool", "controlledAccess"]);
         expect(capture.core.fees.slice(0, 2)).toEqual([
             { label: "Boiler Fee", amount: 16, text: "$16 / mo ($13.75/month Charged per unit.)" },
             { label: "Utility-Boiler Maintenance Fee", amount: 16.75, text: "$16.75 / mo (Charged per unit.)" },
@@ -86,7 +88,6 @@ describe("apartments.com community page (captured)", () => {
 
         const detail = capture.detail.data as ApartmentsDetail;
         expect(detail.listingId).toBe("th59pbc");
-        expect(detail.via).toEqual(["jsonld", "dom"]);
         expect(detail.models.slice(0, 2)).toEqual([
             { id: "wfmz15j", name: "0B-AMFI 80", rentalKeys: ["14kcv74"] },
             { id: "lecym8e", name: "0B-AMFI 130", rentalKeys: ["2tk5r19", "wh6096k"] },
@@ -109,11 +110,11 @@ describe("apartments.com house page (captured)", () => {
     it("is confirmed with every probe present", () => {
         const detection = detectListing(apartmentsPage, doc, url);
         expect(detection.confirmed).toBe(true);
-        expect(detection.signals.every((s) => s.present)).toBe(true);
+        expect(detection.results.every((s) => s.matched)).toBe(true);
     });
 
     it("reads as a home, priced from the name slot and sized from the strip", () => {
-        const capture = extractCapture(apartmentsPage, doc, url)!;
+        const capture = manualCapture(apartmentsPage, doc, url)!;
         expect(capture.kind).toBe("home");
         expect(capture.partial).toBe(false);
         expect(capture.core.name).toBeNull();
@@ -129,6 +130,8 @@ describe("apartments.com house page (captured)", () => {
         expect(capture.core.availableFrom).toBe("2027-08-08");
         expect(capture.core.description).toMatch(/^Vintage house in West Campus/);
         expect(capture.core.amenities).toEqual(["Washer/Dryer", "Tub/Shower", "Ceiling Fans", "Heating", "Deck", "Yard"]);
+        // "Washer/Dryer" is in-unit laundry; the parking tab's "Surface Lot" is parking; both pet policies allow.
+        expect(capture.core.features).toEqual(["smallDogs", "largeDogs", "cats", "laundryInUnit", "parking"]);
         expect(capture.core.pets).toBe("Dogs Allowed · Cats Allowed");
         expect(capture.core.fees).toEqual([{ label: "Surface Lot", amount: null, text: "" }]);
         // "+1-" is the site's blank phone.
@@ -152,7 +155,7 @@ describe("apartments search results (captured)", () => {
         expect(results).toHaveLength(40);
         for (const result of results) {
             expect(result.url, result.title).toMatch(/^https:\/\/www\.apartments\.com\/[a-z0-9-]+\/[a-z0-9]+\/$/);
-            expect(result.ref, result.title).not.toBeNull();
+            expect(apartmentsPage.descriptor.urls.parse(result.url), result.title).not.toBeNull();
             expect(result.title).not.toMatch(/^https?:|^\$/);
         }
         expect(new Set(results.map((r) => r.url)).size).toBe(40);
@@ -164,14 +167,13 @@ describe("apartments search results (captured)", () => {
             title: "3320 Harmon Ave, Austin, TX 78705",
             url: "https://www.apartments.com/marq-uptown-austin-tx/th59pbc/",
             priceText: "$1,415+ – $2,578+",
-            price: 1415,
             factsText: "Studio – 2 Beds · Marq Uptown",
-            ref: { sourceId: "th59pbc", kind: null },
+            kind: "building",
         });
         // A single bedroom count has no range.
-        expect(studio).toMatchObject({ title: "305 W 35th St, Austin, TX 78705", priceText: "$895+", price: 895, factsText: "Studio · 305 Flats" });
+        expect(studio).toMatchObject({ title: "305 W 35th St, Austin, TX 78705", priceText: "$895+", factsText: "Studio · 305 Flats" });
         const named = apartmentsPage.searchResults!(doc, url)!.find((r) => r.url.includes("/sabina-austin-tx/"));
-        expect(named).toMatchObject({ title: "3400 Harmon Ave, Austin, TX 78705", priceText: "$1,390+ – $1,990+", price: 1390, factsText: "Studio – 2 Beds · Sabina" });
+        expect(named).toMatchObject({ title: "3400 Harmon Ave, Austin, TX 78705", priceText: "$1,390+ – $1,990+", factsText: "Studio – 2 Beds · Sabina" });
     });
 
     it("heads every row with an address, never a name", () => {
@@ -198,8 +200,25 @@ describe("apartments placard address", () => {
             "text/html",
         );
         expect(apartmentsPage.searchResults!(doc, "https://www.apartments.com/austin-tx-78705/")).toEqual([
-            { title: "6021 7th Ave NW, Austin, TX 78705", url: "https://www.apartments.com/6021-7th-ave-nw-austin-tx/a1b2c3d/", priceText: "$6,814", price: 6814, factsText: "4 Beds, 4 Baths", ref: { sourceId: "a1b2c3d", kind: null } },
-            { title: "3618 2nd Ave NW, Austin, TX 78705", url: "https://www.apartments.com/mn3618-austin-tx/e5f6g7h/", priceText: "$940+", price: 940, factsText: "Studio · mn3618", ref: { sourceId: "e5f6g7h", kind: null } },
+            { title: "6021 7th Ave NW, Austin, TX 78705", url: "https://www.apartments.com/6021-7th-ave-nw-austin-tx/a1b2c3d/", priceText: "$6,814", factsText: "4 Beds, 4 Baths", kind: "home" },
+            { title: "3618 2nd Ave NW, Austin, TX 78705", url: "https://www.apartments.com/mn3618-austin-tx/e5f6g7h/", priceText: "$940+", factsText: "Studio · mn3618", kind: "building" },
+        ]);
+    });
+
+    it("tells a home's placard from a community's: the site's 'for Rent' line, a unit in the title, or an address there", () => {
+        // As the live site drew them, 2026-10-12.
+        const doc = new DOMParser().parseFromString(
+            `<html><body><div id="placardContainer">
+                <article class="placard" data-listingid="n13y02q"><a class="property-link" href="https://www.apartments.com/120-broadway-seattle-wa/n13y02q/"><div class="property-title">120 Broadway-SI FL3-ID540</div><div class="property-address">120 Broadway, Seattle, WA 98122</div></a><div class="rentRollup"><div class="bedRentBox"><div class="bedTextBox">1 Bed</div><div class="priceTextBox">$1,950</div></div></div><p class="property-type-for-rent">Apartment for Rent</p></article>
+                <article class="placard" data-listingid="52ghdsm"><a class="property-link" href="https://www.apartments.com/yesler-towers-seattle-wa/52ghdsm/"><div class="property-title">Yesler Towers</div><div class="property-address">809 S Washington St, Seattle, WA 98104</div></a><div class="rentRollup"><div class="bedRentBox"><div class="bedTextBox">1 Bed</div><div class="priceTextBox">$1,483+</div></div></div></article>
+                <article class="placard" data-listingid="k8x2p4m"><a class="property-link" href="https://www.apartments.com/tanager-seattle-wa/k8x2p4m/"><div class="property-title">Unit 615 at Tanager</div><div class="property-address">1314 E Union St, Seattle, WA 98122</div></a><div class="rentRollup"><div class="bedRentBox"><div class="bedTextBox">1 Bed</div><div class="priceTextBox">$2,351</div></div></div></article>
+            </div></body></html>`,
+            "text/html",
+        );
+        expect(apartmentsPage.searchResults!(doc, "https://www.apartments.com/seattle-wa-98122/")!.map((result) => [result.title, result.kind])).toEqual([
+            ["120 Broadway, Seattle, WA 98122", "home"],
+            ["809 S Washington St, Seattle, WA 98104", "building"],
+            ["1314 E Union St, Seattle, WA 98122", "home"],
         ]);
     });
 });
@@ -214,9 +233,8 @@ describe("apartments search page (synthetic)", () => {
                 title: "The Juniper Lofts",
                 url: "https://www.apartments.com/the-juniper-lofts-austin-tx/k4m2x9z/",
                 priceText: "$1,895 - $2,850",
-                price: 1895,
                 factsText: null,
-                ref: { sourceId: "k4m2x9z", kind: null },
+                kind: "building",
             },
         ]);
         for (const placard of doc.querySelectorAll("article.placard")) placard.remove();
@@ -225,9 +243,8 @@ describe("apartments search page (synthetic)", () => {
                 title: "The Juniper Lofts",
                 url: "https://www.apartments.com/the-juniper-lofts-austin-tx/k4m2x9z/",
                 priceText: null,
-                price: null,
                 factsText: null,
-                ref: { sourceId: "k4m2x9z", kind: null },
+                kind: null,
             },
         ]);
     });
@@ -240,6 +257,20 @@ describe("apartments search page (synthetic)", () => {
         expect(apartmentsPage.searchNextUrl!(last, "https://www.apartments.com/austin-tx/2/")).toBeNull();
         expect(apartmentsPage.searchNextUrl!(fixture("apartments-search.html"), url)).toBeNull();
         expect(apartmentsPage.searchNextUrl!(first, "https://www.apartments.com/the-juniper-austin-tx/abcdefg/")).toBeNull();
+    });
+
+    it("keeps the filters on the next page: the site's Next links the bare place, so the page number goes onto the URL the tab is on", () => {
+        const paged = (nav: string): Document => new DOMParser().parseFromString(`<html><body><div id="placardContainer"></div>${nav}</body></html>`, "text/html");
+        // As served live on 2026-10-12 for /apartments-condos/seattle-wa-98122/min-1-bedrooms-1-bathrooms-under-2000-pet-friendly-cat/.
+        const first = paged('<nav id="paging" class="paging"><ol><li><a class="active" data-page="1">1</a></li><li><a href="https://www.apartments.com/seattle-wa-98122/" data-page="2">2</a></li><li><a class="next" aria-label="Next" href="https://www.apartments.com/seattle-wa-98122/" data-page="2">Next</a></li></ol></nav>');
+        const filtered = "https://www.apartments.com/apartments-condos/seattle-wa-98122/min-1-bedrooms-1-bathrooms-under-2000-pet-friendly-cat/";
+        expect(apartmentsPage.searchNextUrl!(first, filtered)).toBe(`${filtered}2/`);
+        expect(apartmentsPage.searchNextUrl!(first, `${filtered}?kw=balcony`)).toBe(`${filtered}2/?kw=balcony`);
+        const third = paged('<nav id="paging" class="paging"><ol><li><a class="active" data-page="2">2</a></li><li><a class="next" href="https://www.apartments.com/seattle-wa-98122/3/" data-page="3">Next</a></li></ol></nav>');
+        expect(apartmentsPage.searchNextUrl!(third, `${filtered}2/`)).toBe(`${filtered}3/`);
+        // A Next without a page number still follows its link.
+        const plain = paged('<nav id="paging" class="paging"><ol><li><a class="next" href="https://www.apartments.com/austin-tx/2/">Next</a></li></ol></nav>');
+        expect(apartmentsPage.searchNextUrl!(plain, "https://www.apartments.com/austin-tx/")).toBe("https://www.apartments.com/austin-tx/2/");
     });
 
     it("answers empty for an empty container, and nothing for a page that is not a search", () => {
@@ -280,8 +311,8 @@ describe("apartments home page", () => {
         });
 
         expect(firstSuggestion(doc)).toBeNull(); // only Recent Searches so far
-        const result = await apartmentsPage.driveSearch!(doc, url, "78701");
-        expect(result?.asked).toBe(true);
+        const result = await apartmentsPage.submitSearch!(doc, url, "78701");
+        expect(result?.submitted).toBe(true);
         expect(result?.note).toMatch(/the box reads "78701"; took the suggestion "78701, Austin, TX"/);
         expect(box.textContent).toBe("78701");
         expect(taken).toEqual(["78701, Austin, TX"]);
@@ -298,8 +329,8 @@ describe("apartments home page", () => {
         box.addEventListener("keydown", (event) => {
             if ((event as KeyboardEvent).key === "Enter") setTimeout(() => window.dispatchEvent(new Event("beforeunload")), 50);
         });
-        const result = await driveSearch(doc, "78701");
-        expect(result?.asked).toBe(true);
+        const result = await submitSiteSearch(doc, "78701");
+        expect(result?.submitted).toBe(true);
         expect(result?.note).toMatch(/took the suggestion "78701, Austin, TX" at .*, sent Enter$/);
     }, 10_000);
 
@@ -309,15 +340,15 @@ describe("apartments home page", () => {
         const seen: string[] = [];
         box.addEventListener("keydown", (event) => seen.push(`keydown ${(event as KeyboardEvent).key}`));
         doc.querySelector(".smart-search-btn-search")!.addEventListener("click", () => seen.push("button"));
-        const result = await driveSearch(doc, "nowhere");
-        expect(result?.asked).toBe(false);
+        const result = await submitSiteSearch(doc, "nowhere");
+        expect(result?.submitted).toBe(false);
         expect(result?.note).toMatch(/no suggestion after .*, sent Enter, pressed the button; the page stayed/);
         // The typed character's key event, then the Enter, then the button.
         expect(seen).toEqual(["keydown e", "keydown Enter", "button"]);
     }, 15_000);
 
     it("has nothing to drive on a page without the box", async () => {
-        await expect(driveSearch(fixture("apartments-search.html"), "78701")).resolves.toBeNull();
+        await expect(submitSiteSearch(fixture("apartments-search.html"), "78701")).resolves.toBeNull();
     });
 
     it("types again when the site empties the box, and gives up with a reason when it keeps doing so", async () => {
@@ -328,8 +359,8 @@ describe("apartments home page", () => {
             wipes += 1;
             setTimeout(() => (box.textContent = ""), 50);
         });
-        const result = await driveSearch(doc, "78701");
-        expect(result?.asked).toBe(false);
+        const result = await submitSiteSearch(doc, "78701");
+        expect(result?.submitted).toBe(false);
         expect(result?.note).toMatch(/could not keep "78701" in the box: after typing by writing the text the site left the box reading "" \(4 attempts\)/);
         expect(wipes).toBe(4);
     }, 10_000);

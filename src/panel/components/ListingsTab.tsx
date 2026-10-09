@@ -1,37 +1,31 @@
 import { useEffect, useState } from "preact/hooks";
 import { deleteListings } from "../../db/listings";
-import { LISTING_STATUSES, STATUS_LABELS, type ListingStatus } from "../../db/types";
-import { SOURCES, sourceForUrl, sourceLabel } from "../../sources";
-import { enabledSources, isEnabled } from "../grants";
+import { LISTING_STATUSES, PROPERTY_TYPES, PROPERTY_TYPE_LABELS, STATUS_LABELS, type ListingStatus, type PropertyType } from "../../db/types";
+import { SOURCES, sourceLabel } from "../../sources";
+import type { SourceDescriptor } from "../../sources/contract";
+import { orderedFeatures } from "../../sources/shared/features";
+import { FEATURES, grouped, type FeatureKey } from "../../sources/shared/filters";
+import { offSourceForUrl } from "../activeTab";
+import { enabledSources, grantNotes, isEnabled, toggleSource } from "../grants";
 import { liveSettings } from "../live";
 import { plural } from "../format";
 import { activeListing, activeTab, captureNote, captureState, everything, ordered, relations, saving } from "../model";
 import { DEFAULT_FILTERS, NATURAL_DIR, SORT_KEYS, SORT_LABELS, activeFilterCount, isDefaultSort, type SortKey } from "../query";
 import { anchorId, clearSelection, confirmingDelete, pruneSelection, selectAllVisible, selectWhere, selected, visibleIds } from "../selection";
-import { controlsOpen, filters, forgetCards, photoMode, resetFilters, setCardsOpen, sort } from "../store";
+import { controlsOpen, featuresOpen, filters, forgetCards, photoMode, resetFilters, setCardsOpen, sort } from "../store";
 import { Card, SECTION_NAMES } from "./Card";
 
-/**
- * The Listings tab: the capture row, the Filters card, the list toolbar and
- * the cards. Everything here reads signals (model.ts, store.ts,
- * selection.ts) and repaints on its own.
- */
+/** The Listings tab: the capture row, the Filters card, the list toolbar and the cards. */
 
-// ---------------------------------------------------------------------------
 // The capture row
-// ---------------------------------------------------------------------------
 
-/**
- * What to say when nothing is confirmed. A page still being looked at says
- * so; a site that is off is the likely reason otherwise, and worth naming.
- */
+/** What the capture row says when nothing is confirmed. */
 function sourceNote(): string {
     const { url, checking, challenge } = activeTab.state.value;
     if (challenge) return challenge;
     if (checking) return "Checking this page…";
-    if (url === null) return "No listing confirmed on this tab.";
-    const source = sourceForUrl(url);
-    if (source && !isEnabled(source)) return `${source.label} is not enabled. Turn it on under Sources.`;
+    const off = offSourceForUrl(url, isEnabled);
+    if (off) return grantNotes.value.get(off.id) ?? `${off.label} is supported but not enabled.`;
     return "No listing confirmed on this tab.";
 }
 
@@ -41,6 +35,18 @@ export function CaptureRow({ onCapture, onLocate }: { onCapture(): void; onLocat
     const label = { try: "Try to capture", new: "Add listing", update: "Update listing", saved: "Re-capture" }[state];
     const note = captureNote.value || { try: sourceNote(), new: "", update: "This page differs from what is saved.", saved: "Saved ✓" }[state];
     const ok = note === "Saved ✓" || note.startsWith("Saved.");
+    // The tab is on a supported site that is off: the row offers to enable it here.
+    const { url, checking, challenge } = activeTab.state.value;
+    const off = state === "try" && !captureNote.value && !checking && !challenge ? offSourceForUrl(url, isEnabled) : null;
+    const [enabling, setEnabling] = useState(false);
+    const enable = async (source: SourceDescriptor): Promise<void> => {
+        setEnabling(true);
+        try {
+            await toggleSource(source);
+        } finally {
+            setEnabling(false);
+        }
+    };
     return (
         <div id="capture" class="capture">
             <button id="capture-button" class={`tool${state === "new" || state === "update" ? " primary" : ""}`} type="button" disabled={activeTab.state.value.tabId === null || saving.value} onClick={onCapture}>
@@ -52,14 +58,16 @@ export function CaptureRow({ onCapture, onLocate }: { onCapture(): void; onLocat
             <span id="capture-note" class={`capture-note${ok ? " ok" : ""}`} role="status">
                 {note}
             </span>
+            {off && (
+                <button id="enable-source" class="tool primary" type="button" disabled={enabling} title={`Ask Chrome for access to ${off.label}`} onClick={() => void enable(off)}>
+                    Enable source
+                </button>
+            )}
         </div>
     );
 }
 
-// ---------------------------------------------------------------------------
-// The Filters card: a header row that folds the rest; inside, the search box
-// over saved listings and one labelled row per concern.
-// ---------------------------------------------------------------------------
+// The Filters card
 
 export function FiltersHeader() {
     const current = filters.value;
@@ -69,7 +77,7 @@ export function FiltersHeader() {
     const shown = ordered.value.length;
     const activeCount = activeFilterCount(current);
 
-    // The search box is debounced: rendering rebuilds every card, and typing is faster than that.
+    // Debounced: rendering rebuilds every card.
     const [query, setQuery] = useState(current.query);
     useEffect(() => setQuery(current.query), [current.query]);
     useEffect(() => {
@@ -78,8 +86,7 @@ export function FiltersHeader() {
         return () => clearTimeout(timer);
     }, [query]);
 
-    // With the controls folded, the title row says what they are set to --
-    // only what differs from the defaults, so a plain view reads as plain.
+    // With the controls folded, the title row says what differs from the defaults.
     const summary: string[] = [];
     if (current.query.trim()) summary.push(`“${current.query.trim()}”`);
     if (current.kind === "home") summary.push("Homes");
@@ -98,6 +105,9 @@ export function FiltersHeader() {
         const n = Number(value);
         return value !== "" && Number.isFinite(n) && n >= 0 ? n : null;
     };
+    const setFeature = (key: FeatureKey, on: boolean): void => {
+        set({ features: on ? orderedFeatures([...current.features, key]) : current.features.filter((other) => other !== key) });
+    };
 
     return (
         <div class="filters">
@@ -107,7 +117,6 @@ export function FiltersHeader() {
                 <span id="count" class="count">
                     {all === 0 ? "" : shown === all ? String(all) : `${shown} of ${all}`}
                 </span>
-                {/* Like the Search tab's: sets no filters, and keeps the typed text. */}
                 <button id="reset-filters" class="filters-reset" type="button" title="Set no filters" hidden={!anySet} onClick={() => set({ ...DEFAULT_FILTERS, query: current.query })}>
                     Reset
                 </button>
@@ -152,12 +161,19 @@ export function FiltersHeader() {
                                     </option>
                                 ))}
                             </select>
+                            <select id="type-filter" aria-label="Type" value={current.propertyType} onChange={(event) => set({ propertyType: ((PROPERTY_TYPES as readonly string[]).includes(event.currentTarget.value) ? event.currentTarget.value : "all") as PropertyType | "all" })}>
+                                <option value="all">Any type</option>
+                                {PROPERTY_TYPES.map((type) => (
+                                    <option key={type} value={type}>
+                                        {PROPERTY_TYPE_LABELS[type]}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                     <div class="row">
                         <span class="row-label">Sort</span>
                         <div class="row-body">
-                            {/* A new key starts in its natural direction; the arrow flips it from there. */}
                             <select
                                 id="sort-key"
                                 aria-label="Sort by"
@@ -227,6 +243,34 @@ export function FiltersHeader() {
                             </button>
                         </div>
                     </div>
+                    <div class="features">
+                        <div class="features-head">
+                            <button id="features-toggle" class="disclosure" type="button" aria-expanded={featuresOpen.value} aria-controls="features" aria-label="Show or hide the feature boxes" onClick={() => (featuresOpen.value = !featuresOpen.value)} />
+                            <span class="row-label">Features</span>
+                            {!featuresOpen.value && current.features.length > 0 && (
+                                <span id="features-chosen" class="count">
+                                    {FEATURES.filter((field) => current.features.includes(field.key as FeatureKey))
+                                        .map((field) => field.label)
+                                        .join(", ")}
+                                </span>
+                            )}
+                        </div>
+                        <div id="features" class="feature-grid" hidden={!featuresOpen.value}>
+                            {[...grouped(FEATURES)].flatMap(([group, fields]) => [
+                                <span key={group} class="feature-group">
+                                    {group}
+                                </span>,
+                                <div key={`${group}-boxes`} class="feature-boxes">
+                                    {fields.map((field) => (
+                                        <label key={field.key} title={field.title}>
+                                            <input type="checkbox" id={`feature-${field.key}`} checked={current.features.includes(field.key as FeatureKey)} onChange={(event) => setFeature(field.key as FeatureKey, event.currentTarget.checked)} />
+                                            <span>{field.label}</span>
+                                        </label>
+                                    ))}
+                                </div>,
+                            ])}
+                        </div>
+                    </div>
                     <div class="row">
                         <span class="row-label">Images</span>
                         <div class="row-body">
@@ -242,10 +286,7 @@ export function FiltersHeader() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// The list toolbar: a master checkbox, then "Select", a menu of what to
-// select; then what a selection can do; then expand and collapse all.
-// ---------------------------------------------------------------------------
+// The list toolbar
 
 export function ListTools() {
     const ids = visibleIds.value;
@@ -261,7 +302,7 @@ export function ListTools() {
         return () => document.removeEventListener("click", close);
     }, [menuOpen]);
 
-    /** The cards the ⊞ ⊟ buttons act on: the selected ones when there is a selection, otherwise everything on screen. */
+    /** The cards the ⊞ ⊟ buttons act on: the selection, else everything on screen. */
     const foldTargets = (): string[] => (n > 0 ? ids.filter((id) => selected.value.has(id)) : [...ids]);
 
     const remove = async (): Promise<void> => {
@@ -347,9 +388,7 @@ export function ListTools() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // The list
-// ---------------------------------------------------------------------------
 
 export function ListingList({ onJump }: { onJump(id: string): void }) {
     const listings = ordered.value;
@@ -359,7 +398,7 @@ export function ListingList({ onJump }: { onJump(id: string): void }) {
     const activeId = activeListing.value?.id ?? null;
     const loaded = everything.value.length > 0 || all !== null;
 
-    // What is on screen, for shift-ranges and select-all; a selection only ever covers what is on screen.
+    // A selection only ever covers what is on screen.
     const ids = listings.map((listing) => listing.id);
     const key = ids.join("\n");
     useEffect(() => {

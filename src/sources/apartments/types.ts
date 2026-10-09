@@ -1,8 +1,4 @@
-/**
- * What apartments.com says about a listing beyond the shared `core`, kept
- * in `listing.detail.data`. Bump `APARTMENTS_DETAIL_VERSION` when this
- * changes shape.
- */
+/** What apartments.com says beyond the shared `core`, kept in `listing.detail.data`. Bump the version when the shape changes. */
 export const APARTMENTS_DETAIL_VERSION = 1;
 
 export interface ApartmentsModel {
@@ -16,8 +12,6 @@ export interface ApartmentsModel {
 export interface ApartmentsDetail {
     /** The site's listing id, from `data-listingid`, when the page carries it; the URL key is `sourceId`. */
     listingId: string | null;
-    /** Which readers produced the capture, for diagnosing a redesign: "jsonld", "dom". */
-    via: string[];
     models: ApartmentsModel[];
     rating: number | null;
     reviewCount: number | null;

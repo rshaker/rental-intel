@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyCore, rangeOf, type CoreFields, type Listing } from "../db/types";
-import { DEFAULT_FILTERS, matchesFilters, orderForDisplay, rangeBetween, relate, searchTerms, searchText, sortListings } from "./query";
+import { DEFAULT_FILTERS, activeFilterCount, isUnitOf, matchesFilters, orderForDisplay, rangeBetween, relate, searchTerms, searchText, sortListings, type LinkIdsOf } from "./query";
 import { parseFilters, parseSort } from "./schemas";
 
 /** A listing with the given overrides. Everything else is unknown. */
@@ -13,12 +13,8 @@ function listing(id: string, core: Partial<CoreFields>, extra: Partial<Listing> 
         kind: "home",
         core: { ...emptyCore(), ...core },
         detail: { version: 1, data: null },
-        via: "test",
+        readMethod: "test",
         partial: false,
-        propertyId: id,
-        buildingId: null,
-        answersTo: [],
-        buildingRefs: [],
         user: { status: "none", notes: "", links: [] },
         createdAt: 1,
         updatedAt: 1,
@@ -80,6 +76,17 @@ describe("matchesFilters", () => {
         expect(matchesFilters(mid, { ...DEFAULT_FILTERS, bathsMin: 1.5 }, label())).toBe(true);
         expect(matchesFilters(mid, { ...DEFAULT_FILTERS, bathsMin: 2 }, label())).toBe(false);
     });
+
+    it("filters by housing type and by every chosen feature", () => {
+        const house = listing("house", { propertyType: "house", features: ["cats", "laundryInUnit"] });
+        expect(matchesFilters(house, { ...DEFAULT_FILTERS, propertyType: "house" }, label())).toBe(true);
+        expect(matchesFilters(house, { ...DEFAULT_FILTERS, propertyType: "condo" }, label())).toBe(false);
+        expect(matchesFilters(cheap, { ...DEFAULT_FILTERS, propertyType: "house" }, label())).toBe(false);
+        expect(matchesFilters(house, { ...DEFAULT_FILTERS, features: ["laundryInUnit"] }, label())).toBe(true);
+        expect(matchesFilters(house, { ...DEFAULT_FILTERS, features: ["laundryInUnit", "pool"] }, label())).toBe(false);
+        expect(matchesFilters(cheap, { ...DEFAULT_FILTERS, features: ["cats"] }, label())).toBe(false);
+        expect(activeFilterCount({ ...DEFAULT_FILTERS, propertyType: "house", features: ["cats", "pool"] })).toBe(3);
+    });
 });
 
 describe("sortListings and orderForDisplay", () => {
@@ -99,17 +106,36 @@ describe("sortListings and orderForDisplay", () => {
 });
 
 describe("relate", () => {
-    it("reads siblings off the shared property id and units off the building id", () => {
-        const twin = listing("twin", {}, { source: "example", sourceId: "twin", propertyId: "cheap" });
-        const unit = listing("unit", {}, { buildingId: "bldg" });
-        const orphan = listing("orphan", {}, { buildingId: "gone" });
-        const relations = relate([cheap, mid, building, twin, unit, orphan]);
-        expect(relations.siblings.get("cheap")?.map((l) => l.id)).toEqual(["twin"]);
-        expect(relations.siblings.get("twin")?.map((l) => l.id)).toEqual(["cheap"]);
+    const PINE = { line1: "10 Pine St", unit: null, city: "Springfield", state: "IL", zip: "62701", text: "10 Pine St, Springfield, IL 62701" };
+    const atPine = listing("pine", { address: PINE });
+    const tower = listing(
+        "tower",
+        { name: "The Tower", plans: [{ id: "p", name: "A1", beds: 1, baths: 1, sqft: { min: 600, max: 600 }, rent: { min: 1800, max: 1800 }, availableUnits: 1, units: [{ id: "pine", name: "Unit 1", beds: 1, baths: 1, sqft: 600, rent: 1800, availableFrom: null, status: null, url: null }] }] },
+        { kind: "building", sourceId: "TwrKey" },
+    );
+    /** Link ids as a source would read them: the tower answers to a lot id, two homes name it by key or lot. */
+    const ids: LinkIdsOf = (l) => ({ aliases: l.id === "tower" ? ["lot:777"] : [], buildingIds: l.id === "bykey" ? ["TwrKey"] : l.id === "bylot" ? ["lot:777"] : [] });
+
+    it("pairs listings of the same place on different sites, of the same kind only", () => {
+        const dup = listing("dup", { address: { ...PINE, line1: "10 Pine Street", text: "10 Pine Street, Springfield" } }, { source: "zillow", sourceId: "1" });
+        const asBuilding = listing("b", { address: PINE }, { kind: "building" });
+        const relations = relate([atPine, mid, dup, asBuilding]);
+        expect(relations.siblings.get("pine")?.map((l) => l.id)).toEqual(["dup"]);
+        expect(relations.siblings.get("dup")?.map((l) => l.id)).toEqual(["pine"]);
         expect(relations.siblings.has("mid")).toBe(false);
-        expect(relations.unitsOf.get("bldg")?.map((l) => l.id)).toEqual(["unit"]);
-        expect(relations.buildingOf.get("unit")?.id).toBe("bldg");
-        expect(relations.buildingOf.has("orphan")).toBe(false); // its building was deleted
+        expect(relations.siblings.has("b")).toBe(false);
+    });
+
+    it("finds a home's building by the unit list, the key or an alias, on the same site only", () => {
+        const bykey = listing("bykey", {});
+        const bylot = listing("bylot", {});
+        const other = listing("other", {}, { source: "zillow" });
+        const relations = relate([atPine, tower, bykey, bylot, other], ids);
+        expect(relations.unitsOf.get("tower")?.map((l) => l.id)).toEqual(["pine", "bykey", "bylot"]);
+        expect(relations.buildingOf.get("pine")?.id).toBe("tower");
+        expect(relations.buildingOf.has("other")).toBe(false);
+        expect(relations.buildingOf.has("tower")).toBe(false);
+        expect(isUnitOf(bylot, tower, ids)).toBe(true);
     });
 });
 
@@ -125,13 +151,16 @@ describe("rangeBetween", () => {
 describe("persistence", () => {
     it("reads stored filters and sorts without trusting them", () => {
         expect(parseFilters(null)).toEqual(DEFAULT_FILTERS);
-        expect(parseFilters('{"query":"pine","kind":"building","source":"zillow","priceMin":-5,"bedsMin":2,"status":"bogus"}')).toEqual({
+        expect(parseFilters('{"query":"pine","kind":"building","source":"zillow","priceMin":-5,"bedsMin":2,"status":"bogus","propertyType":"house","features":["cats","bogus","cats"]}')).toEqual({
             ...DEFAULT_FILTERS,
             query: "pine",
             kind: "building",
             source: "zillow",
             bedsMin: 2,
+            propertyType: "house",
         });
+        expect(parseFilters('{"features":["pool","cats"],"propertyType":"villa"}')).toEqual({ ...DEFAULT_FILTERS, features: ["pool", "cats"] });
+        expect(parseFilters('{"features":"cats"}')).toEqual(DEFAULT_FILTERS);
         expect(parseSort("garbage")).toEqual({ key: "updatedAt", dir: "desc" });
         expect(parseSort('{"key":"price"}')).toEqual({ key: "price", dir: "asc" });
     });

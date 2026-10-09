@@ -1,30 +1,17 @@
-import type { DriveResult } from "../contract";
+import type { SubmitResult } from "../contract";
+import { poll, sleep } from "../../lib/poll";
 import { data } from "../shared/dom";
 import { clean } from "../shared/values";
 
 /**
- * Driving apartments.com's own search box, because the site resolves free
- * text ("78701", "Hyde Park") through its geography service before it
- * builds a URL, and nothing in the text alone says what that URL will be
- * (/austin-tx-78701/ for the zip). So a search starts on the home page:
- * the text goes into the box, the site offers its suggestions, and the
- * first one under Areas is taken, which is what Enter does for a person.
- *
- * From the capture of 2026-10-03 (playwright/fixtures/apartments-home.html):
- * the box is a contenteditable div, the suggestions are li.smart-search-item
- * rows grouped under a .smart-search-category-title ("Areas", "Properties &
- * Management Companies", and "Recent Searches" before anything is typed).
- *
- * The box is drawn and owned by the site's scripts (homepage.bundle.js,
- * which cannot be read from outside the site). Live runs showed text
- * assigned to it never appearing, so the typing here goes through the
- * editing pipeline (`execCommand("insertText")`, which raises the same
- * beforeinput/input events a keyboard does), sends the key events a
- * keyboard would, and then checks that the text is still in a box that is
- * still on the page; when the site has emptied or replaced it, it types
- * again. Every step is reported, for the activity log. The suggestions
- * only draw in a tab that is looked at, which is one reason the panel
- * runs a search in the tab beside it (panel/search/runSearch.ts).
+ * Submitting apartments.com's own search box. The site resolves free text
+ * through its geography service before it builds a URL, so a search starts
+ * on the home page: the text goes into the box (a contenteditable div drawn
+ * by the site's scripts), the first suggestion under Areas is taken, and
+ * the page that follows is the results. Live runs showed text assigned to
+ * the box never appearing, so typing goes through `execCommand("insertText")`
+ * with the key events a keyboard raises, and is checked and repeated. From
+ * the 2026-10-03 capture (playwright/fixtures/apartments-home.html).
  */
 
 const BOX = "#homepage-smart-search .smart-search-input, .smart-search-input";
@@ -42,23 +29,14 @@ const SUGGESTION_POLL_MS = 150;
 /** After asking the site to search, how long the page gets to start leaving before the next way of asking. */
 const LEAVE_WAIT_MS = 1_500;
 
-/**
- * Resolves to what was done; null when this page has no box yet.
- *
- * Each way of asking the site is checked: the page must start leaving
- * (pagehide / beforeunload) before the ask counts. A live run saw the
- * suggestion clicked at 0.8s and the page stay put -- the site had drawn
- * the row but not yet wired it -- so a click that goes nowhere is followed
- * by Enter, then by the search button, and a drive where none of them
- * moved the page reports so and is run again on the next ask.
- */
-export async function driveSearch(doc: Document, query: string): Promise<DriveResult | null> {
+/** What was done; null when this page has no box yet. Each way of asking must make the page start leaving: a clicked suggestion that goes nowhere (seen live) is followed by Enter, then the search button. */
+export async function submitSiteSearch(doc: Document, query: string): Promise<SubmitResult | null> {
     const started = Date.now();
     const since = (): string => `${((Date.now() - started) / 1000).toFixed(1)}s`;
 
     const typed = await typeInto(doc, query);
     if (typed === null) return null;
-    if (!typed.box) return { asked: false, note: `could not keep "${query}" in the box: ${typed.note}` };
+    if (!typed.box) return { submitted: false, note: `could not keep "${query}" in the box: ${typed.note}` };
 
     const leaving = watchLeaving(doc);
     const steps: string[] = [];
@@ -70,16 +48,16 @@ export async function driveSearch(doc: Document, query: string): Promise<DriveRe
     const item = await waitFor(() => firstSuggestion(doc), SUGGESTION_WAIT_MS);
     if (item) {
         press(item);
-        if (await left(`took the suggestion "${clean(item.textContent)}" at ${since()}`)) return { asked: true, note: `${typed.note}; ${steps.join(", ")}` };
+        if (await left(`took the suggestion "${clean(item.textContent)}" at ${since()}`)) return { submitted: true, note: `${typed.note}; ${steps.join(", ")}` };
     } else {
         steps.push(`no suggestion after ${since()}`);
     }
     // Enter takes the first suggestion for a person; the button searches what was typed.
     for (const type of ["keydown", "keypress", "keyup"]) typed.box.dispatchEvent(new KeyboardEvent(type, { bubbles: true, cancelable: true, key: "Enter", code: "Enter", keyCode: 13 }));
-    if (await left("sent Enter")) return { asked: true, note: `${typed.note}; ${steps.join(", ")}` };
+    if (await left("sent Enter")) return { submitted: true, note: `${typed.note}; ${steps.join(", ")}` };
     doc.querySelector<HTMLElement>(SEARCH_BUTTON)?.click();
-    if (await left("pressed the button")) return { asked: true, note: `${typed.note}; ${steps.join(", ")}` };
-    return { asked: false, note: `${typed.note}; ${steps.join(", ")}; the page stayed (${since()})` };
+    if (await left("pressed the button")) return { submitted: true, note: `${typed.note}; ${steps.join(", ")}` };
+    return { submitted: false, note: `${typed.note}; ${steps.join(", ")}; the page stayed (${since()})` };
 }
 
 /** A click as a pointer makes it: pointer, mouse, then click, on the element itself. */
@@ -133,12 +111,7 @@ function findBox(doc: Document): HTMLElement | null {
     return boxes.find((box) => box.getClientRects().length > 0) ?? boxes[0] ?? null;
 }
 
-/**
- * Types the text as a keyboard would, as far as a script can: focus, select
- * what is there, insert through the editing pipeline, and send the key
- * events around it. Falls back to writing the text node when the pipeline
- * is not there (a test DOM) or did not take.
- */
+/** Types the text as a keyboard would, as far as a script can; falls back to writing the text node when the editing pipeline is not there or did not take. */
 function putText(doc: Document, box: HTMLElement, query: string): string {
     box.focus();
     try {
@@ -183,17 +156,7 @@ export function searchFailure(doc: Document): string | null {
     return null;
 }
 
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** Looks every SUGGESTION_POLL_MS until `probe` finds something, or the budget runs out. */
-async function waitFor<T>(probe: () => T | null, budgetMs: number): Promise<T | null> {
-    const budget = AbortSignal.timeout(budgetMs);
-    for (;;) {
-        const found = probe();
-        if (found !== null) return found;
-        if (budget.aborted) return null;
-        await sleep(SUGGESTION_POLL_MS);
-    }
+/** Looks every SUGGESTION_POLL_MS until `look` finds something, or the budget runs out. */
+function waitFor<T>(look: () => T | null, budgetMs: number): Promise<T | null> {
+    return poll(async () => look(), (found) => found, { every: SUGGESTION_POLL_MS, deadline: Date.now() + budgetMs });
 }

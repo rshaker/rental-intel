@@ -3,14 +3,10 @@ import { emptyCore, rangeOf, rangeSpan } from "../../../db/types";
 import { clean, idString, list, num, record, soonest, str, strings } from "../../shared/values";
 import { zillowUrls, ZILLOW_ORIGIN } from "../urls";
 import type { ZillowDetail } from "../types";
+import { buildingFeatures, homeFeatures } from "./features";
 import type { Node } from "./hydration";
 
-/**
- * Mapping Zillow's payload nodes onto `core` and `ZillowDetail`. Field names
- * verified against captured pages (September 2026): a home's property node
- * and a building's `gdp.building` node. The thin DOM fallbacks at the end
- * are for a page whose payload is missing; prefer fixing the hydration path.
- */
+/** Mapping Zillow's payload nodes onto `core` and `ZillowDetail`. Field names verified against captured pages (September 2026). */
 
 /** Zillow addresses arrive as a structured object or a plain string. */
 export function addressFrom(value: unknown, fallback?: unknown): Address {
@@ -29,13 +25,7 @@ export function addressFrom(value: unknown, fallback?: unknown): Address {
     return { line1: null, unit: null, city: null, state: null, zip: null, text };
 }
 
-/**
- * One URL per photo from a Zillow photo list. Each entry carries a
- * `mixedSources` ladder of the same image at several widths in jpeg and webp;
- * this takes the largest jpeg, else the largest webp, else the entry's own
- * `url`. Deliberately *not* a walk of the whole node: a property's payload also
- * holds its neighbours' photos, and those must never land in its record.
- */
+/** One URL per photo from a Zillow photo list: the largest jpeg of each `mixedSources` ladder, else the largest webp, else the entry's `url`. Not a walk of the whole node, which holds the neighbours' photos too. */
 export function photoUrlsFromSources(value: unknown): string[] {
     const urls = new Set<string>();
     for (const item of list(value)) {
@@ -68,10 +58,7 @@ export function propertyTypeFrom(value: unknown): PropertyType | null {
     return "other";
 }
 
-/**
- * When a unit is available, as Zillow states it: "0" for now, a Unix time in
- * milliseconds as a string, or a date string. Anything else is kept as given.
- */
+/** Availability as Zillow states it: "0" for now, a Unix time in milliseconds as a string, or a date string. */
 export function availabilityFrom(value: unknown): string | null {
     const text = clean(idString(value));
     if (!text) return null;
@@ -81,7 +68,7 @@ export function availabilityFrom(value: unknown): string | null {
     return text;
 }
 
-export function emptyDetail(via: string): ZillowDetail {
+export function emptyDetail(): ZillowDetail {
     return {
         homeType: null,
         lotId: null,
@@ -95,7 +82,6 @@ export function emptyDetail(via: string): ZillowDetail {
         transitScore: null,
         bikeScore: null,
         yearBuilt: null,
-        via,
     };
 }
 
@@ -104,20 +90,15 @@ function absoluteZillow(path: string | null): string | null {
     return path.startsWith("/") ? `${ZILLOW_ORIGIN}${path}` : path;
 }
 
-// ---------------------------------------------------------------------------
 // Home
-// ---------------------------------------------------------------------------
 
 /** Maps a property node onto core and detail. */
 export function homeFrom(node: Node): { core: CoreFields; detail: ZillowDetail } {
-    // The building a unit belongs to. Every home has one of these, even a
-    // detached house (a one-unit "building"); the URL key hides in `bdpUrl`.
+    // Every home has a building, even a detached house; the URL key is in `bdpUrl`.
     const building = record(node["building"]);
     const bdpUrl = str(building?.["bdpUrl"]) ?? str(node["bdpUrl"]);
     const buildingRef = bdpUrl ? zillowUrls.parse(bdpUrl) : null;
 
-    // Own photos only. `originalPhotos` is uncropped and largest; a walk of
-    // the whole node would sweep up the neighbours'.
     const photoUrls = photoUrlsFromSources(node["originalPhotos"]);
     const fallbackPhotos = photoUrlsFromSources(node["responsivePhotos"]);
     const hero = str(node["desktopWebHdpImageLink"]);
@@ -130,21 +111,21 @@ export function homeFrom(node: Node): { core: CoreFields; detail: ZillowDetail }
     core.beds = rangeOf(num(node["bedrooms"]) ?? num(node["beds"]));
     core.baths = rangeOf(num(node["bathrooms"]) ?? num(node["baths"]));
     core.sqft = rangeOf(num(node["livingArea"]) ?? num(node["livingAreaValue"]) ?? num(node["sqft"]));
-    // A home that is not for rent (off market, for sale) has no availability
-    // to speak of, whatever `availabilityDate` still holds.
+    // A home that is not for rent has no availability, whatever `availabilityDate` still holds.
     const status = str(node["homeStatus"]) ?? str(node["keystoneHomeStatus"]);
     const forRent = status === null || unitStatusFrom(status) === "for-rent";
     core.availableFrom = forRent ? availabilityFrom(node["availabilityDate"]) : null;
     core.photoUrls = photoUrls.length ? photoUrls : fallbackPhotos.length ? fallbackPhotos : hero ? [hero] : [];
     core.description = clean(str(node["description"]));
     core.amenities = amenitiesOf(record(node["resoFacts"]));
+    core.features = homeFeatures(node);
     core.pets = petsOf(record(node["resoFacts"]));
     core.fees = feesOf(node["rentalApplicationPriceDetail"], record(node["resoFacts"]));
     const attribution = record(node["attributionInfo"]);
     core.contact.company = str(attribution?.["brokerName"]) ?? str(record(node["listingProvider"])?.["postingWebsiteLinkText"]);
     core.contact.phone = str(attribution?.["agentPhoneNumber"]);
 
-    const detail = emptyDetail("hydration");
+    const detail = emptyDetail();
     detail.homeType = str(node["homeType"]);
     detail.status = status;
     detail.buildingKey = buildingRef?.kind === "building" ? buildingRef.sourceId : str(node["buildingKey"]);
@@ -183,18 +164,9 @@ function feesOf(priceDetail: unknown, facts: Node | null): Fee[] {
     return fees;
 }
 
-// ---------------------------------------------------------------------------
 // Building
-// ---------------------------------------------------------------------------
 
-/**
- * Zillow's status word on a home record, as a unit status: `listingType` on
- * a building's ungrouped unit ("FOR_RENT", "OTHER" — verified on a captured
- * small building), `homeStatus` on a home's own page. FOR_RENT is the only
- * value a rental feed produces; the rest are what a home record at a lot
- * can be: for sale (or pending), or off the market (sold, "OTHER", anything
- * unfamiliar). Null when the record carries no status at all.
- */
+/** Zillow's status word (`listingType` on an ungrouped unit, `homeStatus` on a home) as a unit status: for rent, for sale or pending, else off market. */
 export function unitStatusFrom(value: unknown): UnitStatus | null {
     const word = (str(value) ?? "").replace(/[\s_-]/g, "").toLowerCase();
     if (!word) return null;
@@ -204,16 +176,10 @@ export function unitStatusFrom(value: unknown): UnitStatus | null {
 }
 
 /**
- * A unit with a zpid; one without is not a unit Zillow can show, so it is
- * skipped. A `feed` unit comes from a floor plan, which is the property
- * manager's rental feed: every unit in it is for rent, its price is rent and
- * `availableFrom: "0"` means now. An ungrouped unit is a home record Zillow
- * holds at the lot, whatever its state: its `listingType` decides whether
- * the price is rent and the availability means anything. An "OTHER" record
- * keeps a stale `price` or `baseRent` and the `availableFrom: "0"` default
- * from whatever it last was, so none of that is read. A record with no
- * status and no price is off the market; one with a price but no status is
- * unknown, never assumed to be for rent.
+ * A unit with a zpid. A `feed` unit comes from a floor plan and is for rent;
+ * an ungrouped unit is a home record at the lot whose `listingType` decides
+ * whether its stale `price` and `availableFrom` mean anything. No status and
+ * no price is off market; a price with no status is unknown.
  */
 function unitFrom(value: unknown, plan: { beds: number | null; baths: number | null }, feed: boolean): Unit | null {
     const unit = record(value);
@@ -232,7 +198,7 @@ function unitFrom(value: unknown, plan: { beds: number | null; baths: number | n
         rent: offered ? price : null,
         availableFrom: offered ? availabilityFrom(unit["availableFrom"]) : null,
         status,
-        url: zillowUrls.listing(zpid),
+        url: `${ZILLOW_ORIGIN}/homedetails/${zpid}_zpid/`,
     };
 }
 
@@ -257,13 +223,7 @@ function planFrom(value: unknown): Plan | null {
     };
 }
 
-/**
- * A building's units when Zillow does not group them into floor plans (a
- * small building: `ungroupedUnits` instead of `floorPlans`). Each becomes a
- * plan of its own, named after the unit, so the Plans and Units sections and
- * the unit-to-home relation work the same way. Only a unit for rent counts as
- * available; see unitFrom for why the list holds others.
- */
+/** A small building's `ungroupedUnits`, each as a plan of its own so the Plans and Units sections work the same way. */
 function plansFromUngrouped(value: unknown): Plan[] {
     return list(value).flatMap((item): Plan[] => {
         const unit = unitFrom(item, { beds: null, baths: null }, false);
@@ -303,10 +263,7 @@ export function buildingFrom(node: Node): { core: CoreFields; detail: ZillowDeta
     const grouped = list(node["floorPlans"]).map(planFrom).filter((p): p is Plan => p !== null);
     const plans = grouped.length ? grouped : plansFromUngrouped(node["ungroupedUnits"]);
     const units = plans.flatMap((p) => p.units);
-    // The building's offer is its units for rent. A feed unit always is; an
-    // ungrouped one may be for sale or off the market and is then left out of
-    // the rent, the availability and the count, though it still shapes the
-    // beds/baths/sqft ranges (it is a unit of the building either way).
+    // A unit for sale or off the market is left out of the rent, availability and count, but still shapes the room ranges.
     const onOffer = units.filter(offered);
     const known = units.some((u) => u.status !== null);
     const summaryCount = num(record(node["rentalUnitsSummary"])?.["availableUnitCount"]);
@@ -319,30 +276,24 @@ export function buildingFrom(node: Node): { core: CoreFields; detail: ZillowDeta
     core.geo = num(node["latitude"]) !== null && num(node["longitude"]) !== null ? { lat: num(node["latitude"])!, lng: num(node["longitude"])! } : null;
     core.propertyType = propertyTypeFrom(node["homeTypes"]) ?? "apartment";
     core.plans = plans;
-    // No building-level range in the payload; it is the floor plans' extent,
-    // or the per-bedroom costs Zillow states when the plans carry no price.
     const planRent = rangeSpan(plans.filter((p) => p.units.length === 0 || p.units.some(offered)).map((p) => p.rent));
     core.rent = planRent.min !== null || planRent.max !== null ? planRent : rentFromCosts(node);
     core.beds = rangeSpan(plans.map((p) => rangeOf(p.beds)));
     core.baths = rangeSpan(plans.map((p) => rangeOf(p.baths)));
     core.sqft = rangeSpan(plans.map((p) => p.sqft));
-    // Available: the units for rent when the payload says which they are,
-    // else Zillow's own count, else every unit listed (a feed lists only
-    // available ones).
     core.availableUnits = known ? units.filter((u) => u.status === "for-rent").length : (summaryCount ?? (units.length || null));
     core.availableFrom = soonest(onOffer.map((u) => u.availableFrom));
-    // `galleryPhotos` and `photos` are the same set; the gallery ladder is the
-    // uncropped, larger one. Floor-plan and amenity photos are left alone.
     const gallery = photoUrlsFromSources(node["galleryPhotos"]);
     core.photoUrls = gallery.length ? gallery : photoUrlsFromSources(node["photos"]);
     core.description = clean(str(node["description"]));
     core.amenities = [...new Set([...strings(custom?.["rawAmenities"]), ...strings(amenityDetails?.["unitFeatures"]), ...strings(node["commonUnitAmenities"])])];
+    core.features = buildingFeatures(node);
     core.pets = petsOfBuilding(amenityDetails, record(node["detailedPetPolicy"]));
     core.fees = buildingFees(record(node["detailedPetPolicy"]));
     core.contact.phone = str(node["buildingPhoneNumber"]);
     core.contact.company = str(record(node["contactInfo"])?.["agentFullName"]);
 
-    const detail = emptyDetail("hydration");
+    const detail = emptyDetail();
     detail.homeType = strings(node["homeTypes"])[0] ?? null;
     detail.lotId = idString(node["lotId"]);
     detail.walkScore = num(record(node["walkScore"])?.["walkscore"]) ?? num(node["walkScore"]);

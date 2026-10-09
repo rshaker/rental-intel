@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { zillowSearch } from "./urls";
 
-/**
- * The filtered search URL, held against the two URLs Zillow's own filter
- * panel wrote on 2026-10-04 (their `filterState`s are copied here whole).
- */
+/** The filtered search URL, held against the URLs Zillow's own filter panel wrote on 2026-10-04. */
 
 const stateOf = (url: string): Record<string, any> => JSON.parse(new URL(url).searchParams.get("searchQueryState")!);
 const off = (...keys: string[]) => Object.fromEntries(keys.map((key) => [key, { value: false }]));
@@ -22,15 +19,12 @@ describe("zillowSearch.filteredUrl", () => {
         });
     });
 
-    it("writes the filterState the site wrote for type, amenities and size", () => {
-        const url = filtered("https://www.zillow.com/austin-tx/rentals/", { typeApartments: true, elevator: true, dishwasher: true, utilities: true, sqftMin: 500 });
-        expect(stateOf(url).filterState).toEqual({
+    it("writes the filterState the site wrote for elevator, dishwasher and utilities, and leaves types alone when none is chosen", () => {
+        expect(stateOf(filtered("https://www.zillow.com/austin-tx/rentals/", { elevator: true, dishwasher: true, utilitiesIncluded: true })).filterState).toEqual({
             ...RENTALS,
-            ...off("sf", "tow"),
             eaa: { value: true },
             dish: { value: true },
             uti: { value: true },
-            sqft: { min: 500 },
         });
     });
 
@@ -52,30 +46,27 @@ describe("zillowSearch.filteredUrl", () => {
         expect(state.pagination).toEqual({});
         expect(state.mapBounds).toEqual(given.mapBounds);
         expect(state.regionSelection).toEqual(given.regionSelection);
-        expect(state.filterState).toEqual({ ...RENTALS, sort: { value: "priorityscore" }, beds: { min: 1 } });
+        // A filter the form does not own (sqft) is kept as the URL had it.
+        expect(state.filterState).toEqual({ ...RENTALS, sort: { value: "priorityscore" }, beds: { min: 1 }, sqft: { min: 900 } });
     });
 
-    it("writes the rest of the site's dictionary: dogs, types, size, amenities, keywords", () => {
-        const state = stateOf(filtered("https://www.zillow.com/austin-tx/rentals/", { smallDogs: true, largeDogs: true, typeHouses: true, typeTownhomes: true, sqftMin: 1200, sqftMax: 400, airConditioning: true, laundry: true, parking: true, byOwner: true, viewWater: true, keywords: "  bike   storage " }));
-        expect(state.filterState).toEqual({
-            ...RENTALS,
-            sdog: { value: true },
-            ldog: { value: true },
-            apco: { value: false },
-            sqft: { min: 400, max: 1200 },
-            ac: { value: true },
-            lau: { value: true },
-            parka: { value: true },
-            frbo: { value: true },
-            watv: { value: true },
-            att: { value: "bike storage" },
-        });
+    it("writes both dog sizes", () => {
+        expect(stateOf(filtered("https://www.zillow.com/austin-tx/rentals/", { smallDogs: true, largeDogs: true })).filterState).toEqual({ ...RENTALS, sdog: { value: true }, ldog: { value: true } });
     });
 
-    it("offers each filter once", () => {
+    it("writes types, switching off the ones not chosen; apartments and condos share apco", () => {
+        expect(stateOf(filtered("https://www.zillow.com/austin-tx/rentals/", { typeHouses: true })).filterState).toEqual({ ...RENTALS, apco: { value: false }, sf: { value: true }, tow: { value: false } });
+        expect(stateOf(filtered("https://www.zillow.com/austin-tx/rentals/", { typeApartments: true, typeCondos: true })).filterState).toEqual({ ...RENTALS, apco: { value: true }, sf: { value: false }, tow: { value: false } });
+    });
+
+    it("writes keywords", () => {
+        expect(stateOf(filtered("https://www.zillow.com/austin-tx/rentals/", { keywords: "  bike   storage " })).filterState).toEqual({ ...RENTALS, att: { value: "bike storage" } });
+    });
+
+    it("offers each filter once, in vocabulary order", () => {
         const fields = zillowSearch.filters!;
         expect(new Set(fields.map((field) => field.key)).size).toBe(fields.length);
-        expect([...new Set(fields.map((field) => field.group))]).toEqual(["Rent", "Rooms", "Sq ft", "Pets", "Type", "Listing", "Unit", "Building", "View", "Keywords"]);
+        expect([...new Set(fields.map((field) => field.group))]).toEqual(["Rent", "Rooms", "Type", "Pets", "Laundry", "Unit", "Building", "Listing", "Keywords"]);
     });
 
     it("writes a URL its own search test accepts, and has nothing for a listing", () => {

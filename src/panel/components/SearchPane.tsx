@@ -2,7 +2,8 @@ import "./SearchPane.css";
 import { useSignal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { SOURCES } from "../../sources";
-import type { SearchFilterField, SourceDescriptor } from "../../sources/contract";
+import type { SearchFilterField, SearchResult, SourceDescriptor } from "../../sources/contract";
+import { FILTERS, grouped } from "../../sources/shared/filters";
 import { plural } from "../format";
 import { isEnabled } from "../grants";
 import { saveTextAs, URL_LIST } from "../saveFile";
@@ -12,28 +13,13 @@ import { readStored, store } from "../store";
 import { CurrentTabLink } from "./links";
 
 /**
- * The Search tab: one form per site that can be searched, each a single
- * text field. A run opens the site's results page in the tab beside the
- * panel and lists what the site's content script reads off it
- * (search/runSearch.ts); each result is a link that sends that tab on to
- * the listing, the way every other web link in the panel does.
- *
- * Results are links and nothing more: saving one is a visit to its page and
- * the capture button, as for any page; "Add to listings" hands the whole
- * list to the Load URLs dialog, which does that visit for each. The list
- * can be folded away under its status line, and its URLs saved to a text
- * file, one per line, which is the shape Load URLs reads. The Listings
- * tab's own search box is a different thing -- it searches what is saved.
- *
- * Under the text field, a site that takes filters has them folded behind
- * "+ Filters": one line per group (rent, rooms, pets, ...), each field one
- * the source declares because its URL spelling is known. They shape the
- * next run; the runner applies them once the site has found the place.
- *
- * What each form last did -- the text, the filters, the status, the results
- * -- is kept in localStorage, so it is there again when the panel is
- * reopened and in every panel document (the panel is per tab); each one
- * reads the latest on `storage`, except for a form it is running itself.
+ * The Search tab: one form per searchable site. A run opens the site's
+ * results in the active tab (search/runSearch.ts) and lists them as links;
+ * "Add to listings" hands the list to Load URLs. Filters fold behind
+ * "+ Filters"; once a site has answered, "Show" narrows the list to the
+ * homes or the buildings among the results, and the save and load actions
+ * take what is shown. Each form's last state is kept in localStorage and
+ * shared between panel windows through the `storage` event.
  */
 
 const KEY = "intel.panel.search";
@@ -45,7 +31,7 @@ export interface SearchPaneProps {
     onLoad?(urls: string): void;
 }
 
-const FRESH: SiteSearchState = { query: "", status: "", tone: "", results: null, resultsUrl: null, collapsed: false, filters: {}, filtersOpen: false };
+const FRESH: SiteSearchState = { query: "", status: "", tone: "", results: null, resultsUrl: null, collapsed: false, filters: {}, filtersOpen: false, show: "all" };
 
 /** A form's filters less any its source no longer offers: a stored value from an older build. */
 function known(source: SourceDescriptor, filters: SiteSearchState["filters"]): SiteSearchState["filters"] {
@@ -53,11 +39,10 @@ function known(source: SourceDescriptor, filters: SiteSearchState["filters"]): S
     return Object.fromEntries(Object.entries(filters).filter(([key]) => keys.has(key)));
 }
 
-/** A source's filter fields in their groups, in the order the source lists them. */
-function grouped(fields: readonly SearchFilterField[]): Map<string, SearchFilterField[]> {
-    const groups = new Map<string, SearchFilterField[]>();
-    for (const field of fields) groups.set(field.group, [...(groups.get(field.group) ?? []), field]);
-    return groups;
+/** The shared filters this source has no spelling for, by label, in vocabulary order: what the form's footnote names. */
+function notOffered(source: SourceDescriptor): string[] {
+    const has = new Set((source.search?.filters ?? []).map((field) => field.key));
+    return FILTERS.filter((field) => !has.has(field.key)).map((field) => field.label);
 }
 
 export function SearchPane({ onLine, onLoad }: SearchPaneProps) {
@@ -80,7 +65,7 @@ export function SearchPane({ onLine, onLoad }: SearchPaneProps) {
         if (save) store(KEY, JSON.stringify(Object.fromEntries(next)));
     };
 
-    // Another panel document wrote: take its word for every form not running here.
+    // Another panel window wrote: take its word for every form not running here.
     useEffect(() => {
         const onStorage = (event: StorageEvent): void => {
             if (event.key !== KEY) return;
@@ -132,13 +117,20 @@ export function SearchPane({ onLine, onLoad }: SearchPaneProps) {
         }
     };
 
-    /** The results' URLs, one per line: what Load URLs reads. */
-    const urlList = (source: SourceDescriptor): string => (stateOf(source).results ?? []).map((result) => `${result.url}\n`).join("");
+    /** The results the form lists: every one, or those of the kind "Show" is set to. */
+    const shown = (source: SourceDescriptor): SearchResult[] => {
+        const state = stateOf(source);
+        const results = state.results ?? [];
+        return state.show === "all" ? results : results.filter((result) => result.kind === state.show);
+    };
+
+    /** The shown results' URLs, one per line: what Load URLs reads. */
+    const urlList = (source: SourceDescriptor): string => shown(source).map((result) => `${result.url}\n`).join("");
 
     /** Saves the results' URLs to a text file the user names and places. */
     const saveUrls = async (source: SourceDescriptor): Promise<void> => {
         const state = stateOf(source);
-        const count = state.results?.length ?? 0;
+        const count = shown(source).length;
         if (!count) return;
         const slug = state.query.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
         const name = `${source.id}-search${slug ? `-${slug}` : ""}.txt`;
@@ -150,11 +142,11 @@ export function SearchPane({ onLine, onLoad }: SearchPaneProps) {
         }
     };
 
-    /** One filter's value, from its control; an emptied or unticked one is forgotten. */
+    /** One filter's value, from its control; an emptied, unticked or blank one is forgotten. */
     const setFilter = (source: SourceDescriptor, field: SearchFilterField, control: HTMLInputElement | HTMLSelectElement): void => {
-        const value = field.kind === "flag" ? (control as HTMLInputElement).checked : field.kind === "text" ? control.value.trim() : Number(control.value);
+        const value = field.kind === "flag" ? (control as HTMLInputElement).checked : field.kind === "text" ? control.value : Number(control.value);
         const filters = { ...stateOf(source).filters };
-        if (value === true || (typeof value === "number" && Number.isFinite(value) && value > 0) || (typeof value === "string" && value)) filters[field.key] = value;
+        if (value === true || (typeof value === "number" && Number.isFinite(value) && value > 0) || (typeof value === "string" && value.trim())) filters[field.key] = value;
         else delete filters[field.key];
         update(source, { filters });
     };
@@ -226,6 +218,7 @@ export function SearchPane({ onLine, onLoad }: SearchPaneProps) {
                                                 </div>
                                             ))}
                                             <p class="hint">Applied on the site once it has found the place. A pasted URL is used as it is.</p>
+                                            {notOffered(source).length > 0 && <p class="hint search-filters-missing">Not on {source.label}: {notOffered(source).join(", ")}.</p>}
                                         </div>
                                     </>
                                 )}
@@ -248,6 +241,19 @@ export function SearchPane({ onLine, onLoad }: SearchPaneProps) {
                                                     </CurrentTabLink>
                                                 </>
                                             )}
+                                            {state.results?.length && !isRunning && state.results.some((result) => result.kind) ? (
+                                                <>
+                                                    {" · "}
+                                                    <label class="search-show">
+                                                        Show{" "}
+                                                        <select aria-label="Which of the results to list" value={state.show} onChange={(event) => update(source, { show: event.currentTarget.value as SiteSearchState["show"] })}>
+                                                            <option value="all">All ({state.results.length})</option>
+                                                            <option value="home">Homes ({state.results.filter((result) => result.kind === "home").length})</option>
+                                                            <option value="building">Buildings ({state.results.filter((result) => result.kind === "building").length})</option>
+                                                        </select>
+                                                    </label>
+                                                </>
+                                            ) : null}
                                             {state.results?.length && !isRunning ? (
                                                 <>
                                                     {" · "}
@@ -280,7 +286,7 @@ export function SearchPane({ onLine, onLoad }: SearchPaneProps) {
                                     )}
                                 </p>
                                 <ol class="search-results" hidden={!state.results?.length || isRunning || state.collapsed}>
-                                    {(state.results ?? []).map((result) => {
+                                    {shown(source).map((result) => {
                                         const facts = [result.priceText, result.factsText].filter(Boolean).join(" · ");
                                         return (
                                             <li key={result.url}>
@@ -291,6 +297,12 @@ export function SearchPane({ onLine, onLoad }: SearchPaneProps) {
                                                     <>
                                                         {" "}
                                                         <span class="search-facts">{facts}</span>
+                                                    </>
+                                                )}
+                                                {result.kind && (
+                                                    <>
+                                                        {" "}
+                                                        <span class={`search-kind search-kind-${result.kind}`}>{result.kind === "home" ? "home" : "bldg"}</span>
                                                     </>
                                                 )}
                                             </li>
@@ -325,7 +337,15 @@ interface FilterControlProps {
 
 function FilterControl({ field, group, value, disabled, onChange }: FilterControlProps) {
     const name = field.label === group ? field.label : `${group}: ${field.title ?? field.label}`;
-    if (field.kind === "least") {
+    if (field.kind === "text") {
+        return (
+            <label>
+                {field.label}
+                <input type="text" data-filter={field.key} title={field.title ?? ""} aria-label={name} disabled={disabled} spellcheck={false} value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.currentTarget)} />
+            </label>
+        );
+    }
+    if (field.kind === "minimum") {
         return (
             <label>
                 {field.label}
@@ -346,14 +366,5 @@ function FilterControl({ field, group, value, disabled, onChange }: FilterContro
             </label>
         );
     }
-    const shared = {
-        "data-filter": field.key,
-        placeholder: field.label === group ? (field.title ?? "") : field.label,
-        title: field.title ?? "",
-        "aria-label": name,
-        disabled,
-        value: typeof value === "number" || typeof value === "string" ? String(value) : "",
-        onChange: (event: { currentTarget: HTMLInputElement }) => onChange(event.currentTarget),
-    };
-    return field.kind === "amount" ? <input type="number" min={0} {...shared} /> : <input type="text" spellcheck={false} {...shared} />;
+    return <input type="number" min={0} data-filter={field.key} placeholder={field.label === group ? (field.title ?? "") : field.label} title={field.title ?? ""} aria-label={name} disabled={disabled} value={typeof value === "number" ? String(value) : ""} onChange={(event) => onChange(event.currentTarget)} />;
 }

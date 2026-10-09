@@ -1,19 +1,17 @@
 import type { ComponentChildren } from "preact";
-import { useLayoutEffect, useRef } from "preact/hooks";
-import { ICON } from "../dom";
 
-/**
- * Links, as the panel draws them. A link is an icon and nothing else; what
- * the icon means is fixed in dom.ts: 🌎 a page on the web, 🗂️ a card in this
- * panel, 🗺️ a map.
- */
+/** Links as the panel draws them: a link is an icon, and what each icon means is fixed here. */
+export const ICON = {
+    /** A page on the web. */
+    web: "\u{1F30E}",
+    /** A card in this panel. */
+    card: "\u{1F5C2}️",
+    map: "\u{1F5FA}️",
+    home: "\u{1F3E0}",
+    building: "\u{1F3E2}",
+} as const;
 
-/**
- * A link that opens in the tab beside the panel, the way a thumbnail does,
- * so Back returns to where you were. A plain click is taken over; a click
- * with a modifier, or the middle button, is left to the browser, so
- * ctrl-click and middle-click still open a new tab from the href.
- */
+/** A link that opens in the active tab, so Back returns. A click with a modifier or the middle button is left to the browser. */
 export function CurrentTabLink({ href, title, class: className, children, onClick }: { href: string; title?: string; class?: string; children: ComponentChildren; onClick?: (event: MouseEvent) => void }) {
     return (
         <a
@@ -49,12 +47,7 @@ export interface LinkSlots {
     map?: string | null;
 }
 
-/**
- * Where a thing can be reached: its page on the web, its card in the panel,
- * its place on a map. Each slot that is asked for gets an icon; a slot with
- * nowhere to go is drawn greyed rather than left out, so the row keeps its
- * shape and the absence is itself information ("no card for this yet").
- */
+/** Where a thing can be reached: its page, its card, its place on a map. A slot with nowhere to go is drawn greyed, so the row keeps its shape. */
 export function LinkIcons({ slots, describe, onJump }: { slots: LinkSlots; describe: string; onJump(id: string): void }) {
     const off = (icon: string, why: string) => (
         <span class="icon off" title={why} aria-label={why}>
@@ -68,13 +61,4 @@ export function LinkIcons({ slots, describe, onJump }: { slots: LinkSlots; descr
             {"map" in slots && (slots.map ? <CurrentTabLink class="icon" href={slots.map} title={`Show ${describe} on a map`}>{ICON.map}</CurrentTabLink> : off(ICON.map, `No location for ${describe}`))}
         </span>
     );
-}
-
-/** A DOM node a source's view built, placed in the tree as it is. */
-export function DomNode({ node }: { node: Node }) {
-    const holder = useRef<HTMLSpanElement>(null);
-    useLayoutEffect(() => {
-        holder.current?.replaceChildren(node);
-    }, [node]);
-    return <span ref={holder} />;
 }

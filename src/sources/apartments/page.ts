@@ -1,43 +1,31 @@
 import type { Address, Fee, ListingCapture, ListingKind, Plan, PropertyType, Unit } from "../../db/types";
 import { emptyCore, rangeOf, rangeSpan } from "../../db/types";
-import type { Probe, SearchResult, Signal, SourcePage } from "../contract";
+import type { Check, CheckResult, SearchResult, SourcePage } from "../contract";
 import { data, imageUrls, text, texts } from "../shared/dom";
 import { ldAddress, ldGeo, ldImages, ldNodeOfType, ldNodes, type LdNode } from "../shared/jsonld";
-import { canonicalProbe, markerProbe, ogUrlProbe } from "../shared/probes";
+import { canonicalCheck, markerCheck, ogUrlCheck } from "../shared/checks";
 import { availability, clean, list, num, rangeText, record, soonest, str } from "../shared/values";
 import { apartments } from "./descriptor";
-import { driveSearch, searchFailure } from "./search";
+import { featuresFrom, PET_PANEL } from "./features";
+import { searchFailure, submitSiteSearch } from "./search";
 import { APARTMENTS_DETAIL_VERSION, type ApartmentsDetail, type ApartmentsModel } from "./types";
 
 /**
  * Recognising and reading an apartments.com listing page. Verified against
- * captures of 2026-10-08: a community (Marq Uptown, Austin) and a house.
- *
- * The page's model: a *property* (community, house, condo, townhome) with
- * *models* (floor plans) and *units* under each model, none of which has a
- * page of its own. A house or condo is the same page with no grid at all:
- * one price in the name slot and a headline strip.
- *
- * Readers, in order of trust:
- *   1. JSON-LD: the site emits a `Product` + `RealEstateListing` node for
- *      crawlers whose `mainEntity` (an `ApartmentComplex` or a
- *      `SingleFamilyResidence`) holds the name, address, coordinates and
- *      photos; phone and description sit on the outer node.
- *   2. The pricing grid: `.pricingGridItem` per model, `li.unitContainer`
- *      per unit, data attributes and cells both. See `extract` for the map.
- *   3. Named sections: amenities, fees and policies, description, rating.
+ * captures of 2026-10-08 (a community and a house). The page is a property
+ * with models (floor plans) and units under each; a house is the same page
+ * with no grid, one price in the name slot and a headline strip. Read from
+ * the JSON-LD first, then the pricing grid, then the named sections.
  */
 
 const PHOTO_HOSTS = ["apartments.com"];
 /** The listing's JSON-LD node. The site wraps it as `Product` + `RealEstateListing`, with the place itself under `mainEntity`. */
 const LD_TYPES = new Set(["RealEstateListing", "ApartmentComplex", "Apartment", "Residence", "SingleFamilyResidence", "House", "Accommodation", "LodgingBusiness"]);
 
-/** Furniture only a listing page has. The listing id container and the pricing grid are the surest. */
+/** Layout markers only a listing page has. */
 const MARKERS = ["#propertyName", "[data-listingid]", ".pricingGridItem", "#pricingView", ".propertyAddressContainer", "#amenitiesSection"];
 
-// ---------------------------------------------------------------------------
-// Probes
-// ---------------------------------------------------------------------------
+// Checks
 
 /** The key a JSON-LD node's `url` names, when it is a listing URL. */
 function ldClaim(node: LdNode | null): string | null {
@@ -45,35 +33,30 @@ function ldClaim(node: LdNode | null): string | null {
     return url ? (apartments.urls.parse(url)?.sourceId ?? null) : null;
 }
 
-/** (a) A JSON-LD node of a listing type. Claims the key its `url` carries. */
-function jsonLdProbe(doc: Document): Signal {
+/** A JSON-LD node of a listing type; its `url` names the key. The node is `Product` + `RealEstateListing` with the place under `mainEntity`. */
+function jsonLdCheck(doc: Document): CheckResult {
     const node = ldNodeOfType(ldNodes(doc), LD_TYPES);
     const claim = ldClaim(node);
     return {
         name: "jsonld",
-        present: node !== null,
+        matched: node !== null,
         weight: 2,
-        claim,
+        matchedId: claim,
         detail: node ? `node claims ${claim ?? "nothing"}` : "no listing node",
     };
 }
 
-/**
- * (b) The page carries a listing id, which is the site's own id rather than
- * the URL key, so it claims nothing: it says "a listing page", not which.
- */
-function listingIdProbe(doc: Document): Signal {
+/** The page carries a listing id: the site's own id, not the URL key, so it names no listing. */
+function listingIdCheck(doc: Document): CheckResult {
     const id = data(doc.querySelector("[data-listingid]"), "listingid");
-    return { name: "listingid", present: id !== null, weight: 1, claim: null, detail: id ? `listing id ${id}` : "no listing id" };
+    return { name: "listingid", matched: id !== null, weight: 1, matchedId: null, detail: id ? `listing id ${id}` : "no listing id" };
 }
 
-const probes: Probe[] = [jsonLdProbe, canonicalProbe(apartments.urls), ogUrlProbe(apartments.urls), listingIdProbe, markerProbe(MARKERS)];
+const checks: Check[] = [jsonLdCheck, canonicalCheck(apartments.urls), ogUrlCheck(apartments.urls), listingIdCheck, markerCheck(MARKERS)];
 
-// ---------------------------------------------------------------------------
 // Reading the pricing grid
-// ---------------------------------------------------------------------------
 
-/** The text of the first match with the site's spoken labels (`.screenReaderOnly`) and tooltips left out. */
+/** The first match's text, without the site's `.screenReaderOnly` labels and tooltips. */
 function visible(root: ParentNode, selector: string): string | null {
     const el = root.querySelector(selector);
     if (!el) return null;
@@ -82,7 +65,7 @@ function visible(root: ParentNode, selector: string): string | null {
     return clean(copy.textContent);
 }
 
-/** "Studio • 1 Bath • 533 Sq Ft • Available Now": the unit's specs as the site writes them for its apply button. */
+/** "Studio • 1 Bath • 533 Sq Ft • Available Now": the specs on the unit's apply button. */
 function specsOf(row: Element): { beds: number | null; baths: number | null; sqft: number | null; available: string | null } {
     const parts = (data(row, "applynow-specs") ?? "")
         .split("•")
@@ -106,13 +89,7 @@ function bedRange(value: string | null): { min: number | null; max: number | nul
     return { min: 0, max: range.max ?? 0 };
 }
 
-/**
- * One `li.unitContainer` (a unit row) as a Unit. The row's data attributes
- * carry the unit, its key, beds and baths and the base rent; the cells carry
- * the price a person sees (the total monthly price, fees included), the size
- * and the date. The cells win where both exist, since they are what the
- * listing shows.
- */
+/** One `li.unitContainer` as a Unit. The cells (what the listing shows) win over the row's data attributes where both exist. */
 function unitFrom(row: Element, model: { beds: number | null; baths: number | null }): Unit {
     const specs = specsOf(row);
     const bedsAttr = data(row, "beds");
@@ -129,12 +106,7 @@ function unitFrom(row: Element, model: { beds: number | null; baths: number | nu
     };
 }
 
-/**
- * One `.pricingGridItem` (a model, the site's word for a floor plan) with
- * its units: a `.priceGridModelWrapper[data-rentalkey]` naming the model
- * (`[data-modelname]`, `.modelName`), a `.rentLabel`, a details line
- * ("Studio", "1 Bath", "533 Sq Ft") and, below, the unit rows.
- */
+/** One `.pricingGridItem` (a model, the site's word for a floor plan) with its unit rows. */
 function planFrom(item: Element): { plan: Plan; model: ApartmentsModel } {
     const wrapper = item.querySelector(".priceGridModelWrapper, [data-rentalkey]");
     const details = texts(item, ".detailsTextWrapper span, .detailsText span");
@@ -162,18 +134,9 @@ function planFrom(item: Element): { plan: Plan; model: ApartmentsModel } {
     return { plan, model };
 }
 
-// ---------------------------------------------------------------------------
 // Reading the rest of the page
-// ---------------------------------------------------------------------------
 
-/**
- * The headline strip under the name. A community's reads rent, beds, baths,
- * size ("$1,415 - $4,625", "Studio - 2 bd", "1 - 2 ba", "418 - 1,527 sq
- * ft"); a house's reads beds, baths, size, availability as bare values
- * ("3", "2", "1,142 sq ft", "Available Aug 8, 2027"), with the price in the
- * name slot ("$3,705"). Each item is told by its words, the bare numbers by
- * their order.
- */
+/** The headline strip under the name: labelled ranges on a community ("Studio - 2 bd"), bare values on a house ("3", "2", "1,142 sq ft") with the price in the name slot. */
 function stripFrom(doc: Document): { rent: Range; beds: Range; baths: Range; sqft: Range; available: string | null } {
     const none = (): Range => ({ min: null, max: null });
     const out = { rent: none(), beds: none(), baths: none(), sqft: none(), available: null as string | null };
@@ -218,7 +181,7 @@ function propertyTypeFrom(label: string | null, ldTypes: readonly string[]): Pro
     return label ? "other" : null;
 }
 
-/** Fee rows under `root`: a `.feeName` (its title holds the full name), the `.feeValue` beside it, and the tooltip's note. */
+/** Fee rows under `root`: `.feeName`, `.feeValue` and the tooltip's note. */
 function feeRows(root: ParentNode): Fee[] {
     const fees: Fee[] = [];
     for (const nameEl of root.querySelectorAll(".feeName")) {
@@ -227,13 +190,12 @@ function feeRows(root: ParentNode): Fee[] {
         const label = clean(nameEl.getAttribute("title")) ?? clean(nameEl.textContent);
         const value = visible(row, ".feeValue") ?? "";
         const note = text(row, ".mortar-tooltip-inner-text-container");
-        // "Fees not specified" is the site's blank, not a fee.
         if (label && !/not specified/i.test(label)) fees.push({ label, amount: num(value), text: value && note ? `${value} (${note})` : value || note || "" });
     }
     return fees;
 }
 
-/** Every fee tab but the pets one (that is `pets`), de-duplicated: the site repeats a row across tabs. */
+/** Every fee tab but the pets one, de-duplicated. */
 function feesFrom(doc: Document): Fee[] {
     const panels = [...doc.querySelectorAll('#profileV2FeesWrapper [role="tabpanel"], #feesPoliciesSection, .feespolicies')].filter((p) => !/pet/i.test(p.id));
     const rows = panels.length ? panels.flatMap((p) => feeRows(p)) : feeRows(doc);
@@ -246,13 +208,9 @@ function feesFrom(doc: Document): Fee[] {
     });
 }
 
-/**
- * The pets tab as one line. A community's groups dogs and cats under
- * `ul.level1 > li` headings with fee rows, restrictions and comments; a
- * house's uses `.feesPoliciesCard` with a heading and a row or two.
- */
+/** The pets tab as one line: `ul.level1 > li` groups on a community, `.feesPoliciesCard` on a house. */
 function petsFrom(doc: Document): string | null {
-    const panel = doc.querySelector('[id^="fees-policies-pet"][role="tabpanel"], #petPolicySection, .petPolicyDetails');
+    const panel = doc.querySelector(PET_PANEL);
     if (!panel) return null;
     const groups = [...panel.querySelectorAll("ul.level1 > li, .feesPoliciesCard")];
     if (groups.length === 0) return clean(panel.textContent);
@@ -284,22 +242,7 @@ function scoreOf(doc: Document, selector: string): number | null {
     return num(text(doc, selector));
 }
 
-/**
- * Verified against captures of 2026-10-08 (playwright/fixtures/
- * apartments-building.html, a community; apartments-house.html, a house):
- *
- *   JSON-LD              Product+RealEstateListing; `mainEntity` (ApartmentComplex or
- *                        SingleFamilyResidence) holds name, address, geo, image; `telephone`
- *                        and `description` sit on the outer node
- *   #propertyName        the name, or on a house the price ("$3,705")
- *   .propertyAddressContainer   the address in spans
- *   .rentInfoDetail      the headline strip (see stripFrom)
- *   #pricingView .pricingGridItem   models and their li.unitContainer rows (see planFrom)
- *   #descriptionSection p, #uniqueFeatures .specInfo
- *   #amenitiesSection .amenityLabel, .specInfo
- *   #profileV2FeesWrapper [role=tabpanel]   fee tabs, the pets one read as a line
- *   .renter-score, .reviewCount
- */
+/** Selectors verified against the 2026-10-08 captures (playwright/fixtures/apartments-building.html, apartments-house.html). */
 function extract(doc: Document, url: string, sourceId: string): ListingCapture | null {
     const nodes = ldNodes(doc);
     const ld = ldNodeOfType(nodes, LD_TYPES);
@@ -307,9 +250,9 @@ function extract(doc: Document, url: string, sourceId: string): ListingCapture |
     const items = [...doc.querySelectorAll(".pricingGridItem")];
     if (!ld && items.length === 0 && !doc.querySelector("#propertyName")) return null;
 
-    const via: string[] = [];
-    if (ld) via.push("jsonld");
-    if (items.length || doc.querySelector("#propertyName")) via.push("dom");
+    const readers: string[] = [];
+    if (ld) readers.push("jsonld");
+    if (items.length || doc.querySelector("#propertyName")) readers.push("dom");
 
     const ldTypes = [...new Set([...(ld ? [ld["@type"]].flat() : []), ...(entity ? [entity["@type"]].flat() : [])].filter((t): t is string => typeof t === "string"))];
     const read = items.map(planFrom);
@@ -317,8 +260,7 @@ function extract(doc: Document, url: string, sourceId: string): ListingCapture |
     const units = plans.flatMap((p) => p.units);
     const strip = stripFrom(doc);
 
-    // A community is a page the site calls a complex, or one with more than
-    // one unit or model. A house or condo has one of each, or none listed.
+    // A community is a complex, or more than one unit or model; a house or condo has one of each, or none.
     const kind: ListingKind = ldTypes.includes("ApartmentComplex") || units.length > 1 || plans.length > 1 ? "building" : "home";
 
     const core = emptyCore();
@@ -333,6 +275,7 @@ function extract(doc: Document, url: string, sourceId: string): ListingCapture |
     core.contact.company = companyFrom(doc);
     core.description = str(ld?.["description"]) ?? str(entity?.["description"]) ?? text(doc, "#descriptionSection p, #descriptionSection, .descriptionSection");
     core.amenities = [...new Set(texts(doc, "#amenitiesSection .amenityLabel, #amenitiesSection .specInfo, #uniqueFeatures .specInfo"))];
+    core.features = featuresFrom(doc, core.amenities);
     core.pets = petsFrom(doc);
     core.fees = feesFrom(doc);
 
@@ -351,7 +294,7 @@ function extract(doc: Document, url: string, sourceId: string): ListingCapture |
     core.availableUnits = units.length || null;
     core.availableFrom = soonest(units.map((u) => u.availableFrom)) ?? availability(strip.available);
 
-    // "Marq Uptown is an apartment community located in…", "2802 Salado St is a house located in…"
+    // "Marq Uptown is an apartment community located in…"
     const blurb = text(doc, ".propertyBlurbContent");
     const typeLabel = text(doc, ".propertyType") ?? (blurb ? (/\bis an? ([a-z]+(?: [a-z]+)?) located\b/i.exec(blurb)?.[1] ?? null) : null);
     core.propertyType = propertyTypeFrom(typeLabel, ldTypes);
@@ -361,7 +304,6 @@ function extract(doc: Document, url: string, sourceId: string): ListingCapture |
 
     const detail: ApartmentsDetail = {
         listingId: data(doc.querySelector("[data-listingid]"), "listingid"),
-        via,
         models: read.map((r) => r.model),
         rating: scoreOf(doc, ".renter-score, .reviewRating, [class*='rating'] .ratingValue"),
         reviewCount: num(text(doc, ".reviewCount, [class*='reviewCount']")),
@@ -379,35 +321,21 @@ function extract(doc: Document, url: string, sourceId: string): ListingCapture |
         kind,
         core,
         detail: { version: APARTMENTS_DETAIL_VERSION, data: detail },
-        via: via.join("+"),
+        readMethod: readers.join("+"),
         partial: !ld && items.length === 0,
-        raw: { jsonld: nodes, via },
     };
 }
 
-// ---------------------------------------------------------------------------
 // Search pages
-// ---------------------------------------------------------------------------
 
 /**
- * The result list of a search page. Verified against a capture of
- * /austin-tx-78705/ (2026-10-08, playwright/fixtures/
- * apartments-search-results.html): one `article.placard[data-listingid]`
- * per property, in three paid tiers that share the same bones --
- *
- *   header .property-information a.property-link[href]   the listing's page
- *     .property-title                                    "Marq Uptown"
- *     .property-address                                  "3320 Harmon Ave, Austin, TX 78705"
- *   .rentRollup .bedRentBox                              one per bedroom count
- *     .bedTextBox / .priceTextBox                        "Studio" / "$1,415+"
- *
- * -- and a few anchors that are not links at all (`javascript:void(0)` for
- * the favourite button, `a.property-link` without an href in a tooltip),
- * so the page's URL is the first real one, and a placard without one is
- * not a result. Older selectors (`.property-pricing`, `.property-beds`)
- * stay as fallbacks for a tier the capture did not show. The ItemList the
- * page emits for crawlers is the last resort. An empty placard container
- * is an empty answer; a page with neither is not a search page yet.
+ * The result list of a search page: one `article.placard[data-listingid]`
+ * per property, with `.property-address`, `.property-title` and a
+ * `.rentRollup` of `.bedRentBox` rows (verified 2026-10-08,
+ * playwright/fixtures/apartments-search-results.html). The page's URL is the
+ * placard's first real link. The crawlers' ItemList is the last resort; an
+ * empty placard container is an empty answer, and a page with neither is not
+ * a search page yet.
  */
 function searchResults(doc: Document, url: string): SearchResult[] | null {
     if (!apartments.search?.isSearchUrl(url)) return null;
@@ -418,8 +346,6 @@ function searchResults(doc: Document, url: string): SearchResult[] | null {
         const ref = link ? apartments.urls.parse(link) : null;
         if (!link || !ref || seen.has(link)) continue;
         seen.add(link);
-        // The row is headed by the address, the one thing every listing has in
-        // the same shape; the name, when the site gives one, ends the facts.
         const name = text(placard, ".property-title, .js-placardTitle") ?? placard.querySelector("a.property-link")?.getAttribute("aria-label") ?? text(placard, "a.property-link");
         const address = placardAddress(text(placard, ".property-address") ?? (name && looksLikeAddress(name) ? name : null));
         const title = address ?? name ?? link;
@@ -431,7 +357,7 @@ function searchResults(doc: Document, url: string): SearchResult[] | null {
         const bedLabels = rollup.map((row) => row.beds).filter((label): label is string => label !== null);
         const beds = bedLabels.length ? (bedLabels.length === 1 || bedLabels[0] === bedLabels[bedLabels.length - 1] ? bedLabels[0]! : `${bedLabels[0]!} – ${bedLabels[bedLabels.length - 1]!}`) : text(placard, ".property-beds, .bed-range");
         const factsText = [beds, name && name !== title && !looksLikeAddress(name) ? name : null].filter(Boolean).join(" · ") || null;
-        results.push({ title, url: link, priceText, price: cheapest?.amount ?? rangeText(priceText).min, factsText, ref });
+        results.push({ title, url: link, priceText, factsText, kind: placardKind(placard, name) });
     }
     if (results.length) return results;
 
@@ -441,24 +367,36 @@ function searchResults(doc: Document, url: string): SearchResult[] | null {
         const link = str(item?.["url"]);
         const title = str(item?.["name"]);
         if (!link || !title || !apartments.urls.parse(link)) continue;
-        results.push({ title, url: link, priceText: null, price: null, factsText: null, ref: apartments.urls.parse(link) });
+        results.push({ title, url: link, priceText: null, factsText: null, kind: null });
     }
     if (results.length) return results;
     return doc.querySelector("#placardContainer, .placardContainer") || itemList ? [] : null;
 }
 
 /**
- * The next page of a search. The site lists 40 placards a page and links
- * the rest from `nav#paging`, whose `a.next` carries the next page's URL
- * (/austin-tx-78701/2/); the document's `link[rel=next]` says the same.
- * The last page has neither. Checked against the live site, 2026-10-03.
+ * The next page of a search. The site's `nav#paging a.next` carries the page
+ * number in `data-page`; its href is the bare place URL with every filter slug
+ * dropped, which the site's own script ignores (seen live, 2026-10-12: the
+ * filtered search's Next linked /seattle-wa-98122/, an unfiltered search). So
+ * the page number goes onto the URL the tab is on, in place of any page it
+ * already names; the href is only a fallback, and `link[rel=next]` after that.
+ * The last page has no Next.
  */
 function searchNextUrl(doc: Document, url: string): string | null {
     if (!apartments.search?.isSearchUrl(url)) return null;
-    const href = doc.querySelector("#paging a.next[href], .paging a.next[href]")?.getAttribute("href") ?? doc.querySelector('link[rel="next"][href]')?.getAttribute("href");
-    if (!href) return null;
+    const anchor = doc.querySelector("#paging a.next, .paging a.next");
+    const page = Number(anchor?.getAttribute("data-page"));
+    const href = anchor?.getAttribute("href") ?? doc.querySelector('link[rel="next"][href]')?.getAttribute("href");
     try {
-        const next = new URL(href, url);
+        let next: URL;
+        if (Number.isInteger(page) && page > 1) {
+            next = new URL(url);
+            next.pathname = `${next.pathname.replace(/\/\d+\/?$/, "/").replace(/\/?$/, "/")}${page}/`;
+        } else if (href) {
+            next = new URL(href, url);
+        } else {
+            return null;
+        }
         next.hash = "";
         return next.href !== url && apartments.search.isSearchUrl(next.href) ? next.href : null;
     } catch {
@@ -466,17 +404,25 @@ function searchNextUrl(doc: Document, url: string): string | null {
     }
 }
 
+/**
+ * Whether a placard is one home or a community. The site has no such
+ * distinction of its own: a home's placard carries its "Apartment for Rent"
+ * (Condo, House, Townhome) line, which a community's lacks, and a unit
+ * listed under a community is titled "Unit 615 at Tanager" or by its address
+ * (seen live, 2026-10-12). The listing page decides for good at capture.
+ */
+function placardKind(placard: Element, name: string | null): ListingKind {
+    if (placard.querySelector(".property-type-for-rent")) return "home";
+    if (name && (/\bunit\b/i.test(name) || looksLikeAddress(name))) return "home";
+    return "building";
+}
+
 /** "1800 Lavaca St, Austin, TX 78701": a street, then a city, then a state and zip. */
 function looksLikeAddress(value: string): boolean {
     return /\d/.test(value) && /,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?\s*$/.test(value);
 }
 
-/**
- * The address as the site wrote it, less the placeholder it puts on a
- * single-unit listing's address line ("Unit SI ID1607372P", "Unit SI
- * FL2-ID1607387P"): a system id, not a unit. A real unit ("Unit #1",
- * "Unit 2", "APT 101") is part of the address and stays.
- */
+/** The address as the site wrote it, less the system id it puts on a single-unit listing's address line ("Unit SI ID1607372P"). A real unit stays. */
 export function placardAddress(value: string | null): string | null {
     if (!value) return null;
     return clean(value.replace(/\s+Unit\s+SI(?:\s+[A-Z0-9-]*ID[A-Z0-9-]*)?(?=,|$)/i, ""));
@@ -500,10 +446,10 @@ function placardLink(placard: Element, base: string): string | null {
 
 export const apartmentsPage: SourcePage = {
     descriptor: apartments,
-    probes,
+    checks,
     extract,
     searchResults,
     searchNextUrl,
-    driveSearch: (doc, _url, query) => driveSearch(doc, query),
+    submitSearch: (doc, _url, query) => submitSiteSearch(doc, query),
     searchFailure: (doc) => searchFailure(doc),
 };

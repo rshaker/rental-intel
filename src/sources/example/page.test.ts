@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectListing, extractCapture } from "../../content/detect";
+import { detectListing, manualCapture } from "../../content/detect";
 import { examplePage } from "./page";
 import { slugify } from "../shared/slug";
 import { soonest } from "../shared/values";
@@ -29,7 +29,6 @@ describe("exampleUrls", () => {
     });
 
     it("builds and canonicalises", () => {
-        expect(exampleUrls.listing("juniper01")).toBe("https://listings.example/l/juniper01/");
         expect(exampleUrls.canonical("https://listings.example/l/juniper01?utm_source=x")).toBe("https://listings.example/l/juniper01/");
         expect(exampleUrls.canonical("https://listings.example/search/")).toBe("https://listings.example/search/");
     });
@@ -59,7 +58,9 @@ describe("exampleSearch", () => {
 describe("exampleSearch.filteredUrl", () => {
     it("puts the filters in the query, replacing any already there", () => {
         expect(exampleSearch.filteredUrl!("https://listings.example/search/springfield-il/", { beds: 2 })).toBe("https://listings.example/search/springfield-il/?beds=2");
-        expect(exampleSearch.filteredUrl!("https://listings.example/search/springfield-il/?beds=4", { rentMax: 2500, pets: true })).toBe("https://listings.example/search/springfield-il/?max=2500&pets=1");
+        expect(exampleSearch.filteredUrl!("https://listings.example/search/springfield-il/?beds=4", { rentMax: 2500, cats: true, laundryInUnit: true, keywords: "  quiet  street " })).toBe(
+            "https://listings.example/search/springfield-il/?max=2500&cats=1&laundry=1&kw=quiet+street",
+        );
         expect(exampleSearch.filteredUrl!("https://listings.example/l/juniper01/", { beds: 2 })).toBeNull();
     });
 });
@@ -74,24 +75,22 @@ describe("example search page", () => {
                 title: "The Juniper Lofts",
                 url: "https://listings.example/l/juniper01/",
                 priceText: "$1,895 – $2,850",
-                price: 1895,
                 factsText: "Studio – 2bd · 1 – 2ba",
-                ref: { sourceId: "juniper01", kind: null },
+                kind: "building",
             },
             {
                 title: "118 Pecan St Unit B",
                 url: "https://listings.example/l/pecan00b/",
                 priceText: "$2,400",
-                price: 2400,
                 factsText: "2bd/1ba · 1,150 sqft",
-                ref: { sourceId: "pecan00b", kind: null },
+                kind: "home",
             },
         ]);
     });
 
     it("is still refused as a listing", () => {
         expect(detectListing(examplePage, doc, url).confirmed).toBe(false);
-        expect(extractCapture(examplePage, doc, url)).toBeNull();
+        expect(manualCapture(examplePage, doc, url)).toBeNull();
     });
 
     it("reads nothing off a listing page, or off a search page at a listing URL", () => {
@@ -104,11 +103,11 @@ describe("example building page", () => {
     const doc = fixture("example-building.html");
     const url = "https://listings.example/l/juniper01/";
 
-    it("is confirmed by the structured signals and the furniture", () => {
+    it("is confirmed by the structured checks and the layout markers", () => {
         const detection = detectListing(examplePage, doc, url);
         expect(detection.confirmed).toBe(true);
         expect(detection.score).toBe(7);
-        expect(detection.signals.map((s) => [s.name, s.present])).toEqual([
+        expect(detection.results.map((s) => [s.name, s.matched])).toEqual([
             ["jsonld", true],
             ["canonical", true],
             ["og:url", true],
@@ -120,11 +119,12 @@ describe("example building page", () => {
     it("refuses to confirm the page for another listing's URL", () => {
         const detection = detectListing(examplePage, doc, "https://listings.example/l/someoneelse/");
         expect(detection.confirmed).toBe(false);
-        expect(detection.conflict).toBe(true);
+        // The page's own checks still name juniper01, which is the conflict that refuses it.
+        expect(detection.results.some((r) => r.matched && r.matchedId === "juniper01")).toBe(true);
     });
 
     it("maps the payload onto core", () => {
-        const capture = extractCapture(examplePage, doc, url)!;
+        const capture = manualCapture(examplePage, doc, url)!;
         expect(capture.kind).toBe("building");
         expect(capture.core.name).toBe("The Juniper Lofts");
         expect(capture.core.address).toEqual({ line1: "4200 Juniper Ln", unit: null, city: "Springfield", state: "IL", zip: "62704", text: "4200 Juniper Ln, Springfield, IL 62704" });
@@ -142,6 +142,7 @@ describe("example building page", () => {
         expect(capture.core.propertyType).toBe("apartment");
         expect(capture.core.photoUrls).toHaveLength(3);
         expect(capture.core.amenities).toEqual(["In-unit laundry", "Rooftop deck", "Bike storage"]);
+        expect(capture.core.features).toEqual(["smallDogs", "largeDogs", "cats", "laundryInUnit"]);
         expect(capture.core.pets).toBe("Cats and dogs welcome, $50/mo pet rent");
         expect(capture.core.contact.phone).toBe("(217) 555-0142");
         expect(capture.core.description).toMatch(/^A mid-rise community/);
@@ -154,12 +155,14 @@ describe("example home page", () => {
     const url = "https://listings.example/l/pecan00b/";
 
     it("reads as a home with one-value ranges", () => {
-        const capture = extractCapture(examplePage, doc, url)!;
+        const capture = manualCapture(examplePage, doc, url)!;
         expect(capture.kind).toBe("home");
         expect(capture.core.rent).toEqual({ min: 2400, max: 2400 });
         expect(capture.core.beds).toEqual({ min: 2, max: 2 });
         expect(capture.core.sqft).toEqual({ min: 1150, max: 1150 });
         expect(capture.core.propertyType).toBe("house");
+        // "Off-street parking" is parking; "No pets" is nothing.
+        expect(capture.core.features).toEqual(["parking"]);
         expect(capture.core.availableFrom).toBe("2026-12-01");
         expect(capture.core.address.line1).toBe("118 Pecan St Unit B");
         expect(capture.core.photoUrls).toEqual(["https://photos.listings.example/pecan00b/1.jpg"]);

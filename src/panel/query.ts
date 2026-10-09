@@ -1,19 +1,10 @@
-import { displayName, headlinePrice, maxBeds, type Listing, type ListingKind, type ListingStatus } from "../db/types";
+import { displayName, headlinePrice, maxBeds, NO_LINK_IDS, type LinkIds, type Listing, type ListingKind, type ListingStatus, type PropertyType } from "../db/types";
+import { sameSubject } from "../lib/match";
+import type { FeatureKey } from "../sources/shared/filters";
 
-/**
- * Everything the side panel does to a list of listings before showing it:
- * search, filter, sort, float the active one, read their relations, and
- * work out shift-click ranges.
- *
- * Pure functions over `Listing[]`, on purpose. The unit tests run in jsdom
- * with no IndexedDB, so anything worth pinning has to be reachable without
- * Dexie -- and the list is small enough that doing all of this in memory,
- * after `listListings()`, costs nothing.
- */
+/** Everything the panel does to the list before showing it: search, filter, sort, float the active one, relate, and shift-click ranges. Pure functions over `Listing[]`. */
 
-// ---------------------------------------------------------------------------
 // Sort
-// ---------------------------------------------------------------------------
 
 export type SortKey = "updatedAt" | "capturedAt" | "createdAt" | "price" | "beds" | "sqft" | "name" | "address" | "source";
 export type SortDir = "asc" | "desc";
@@ -83,10 +74,7 @@ function compareValues(a: number | string, b: number | string): number {
     return String(a).localeCompare(String(b), undefined, { sensitivity: "base" });
 }
 
-/**
- * Deterministic order for equal keys, so a re-render never reshuffles rows the
- * user is in the middle of shift-selecting.
- */
+/** Deterministic order for equal keys, so a re-render never reshuffles rows mid shift-select. */
 function tiebreak(a: Listing, b: Listing): number {
     return b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
@@ -97,8 +85,7 @@ export function sortListings(listings: readonly Listing[], sort: SortSpec): List
     return [...listings].sort((a, b) => {
         const va = sortValue(a, sort.key);
         const vb = sortValue(b, sort.key);
-        // Nulls last in both directions: "unknown" is not the smallest value,
-        // and flipping the direction should not drag the unknowns to the top.
+        // Nulls last in both directions.
         if (va === null || vb === null) {
             if (va === vb) return tiebreak(a, b);
             return va === null ? 1 : -1;
@@ -107,15 +94,9 @@ export function sortListings(listings: readonly Listing[], sort: SortSpec): List
     });
 }
 
-// ---------------------------------------------------------------------------
 // Search
-// ---------------------------------------------------------------------------
 
-/**
- * Everything a listing can be found by, as one lowercase string: what the
- * site said about it and what the user wrote on it. Built at query time --
- * the list is small -- so it can never go stale.
- */
+/** Everything a listing can be found by, as one lowercase string: what the site said and what the user wrote. */
 export function searchText(listing: Listing, sourceLabel: string): string {
     const { core, user } = listing;
     const parts: (string | null)[] = [
@@ -144,10 +125,7 @@ export function searchText(listing: Listing, sourceLabel: string): string {
         .toLowerCase();
 }
 
-/**
- * The words of a query. A quoted run is one term, so "no pets" is matched as
- * a phrase; everything else is split on whitespace. Terms are lowercase.
- */
+/** The words of a query, lowercase; a quoted run is one term. */
 export function searchTerms(query: string): string[] {
     const terms: string[] = [];
     for (const match of query.toLowerCase().matchAll(/"([^"]*)"|(\S+)/g)) {
@@ -162,9 +140,7 @@ export function matchesSearch(text: string, terms: readonly string[]): boolean {
     return terms.every((term) => text.includes(term));
 }
 
-// ---------------------------------------------------------------------------
 // Filter
-// ---------------------------------------------------------------------------
 
 export interface ListingFilters {
     /** Free text; see searchTerms. */
@@ -172,10 +148,13 @@ export interface ListingFilters {
     kind: ListingKind | "all";
     /** A source id, or "all". */
     source: string;
+    propertyType: PropertyType | "all";
     priceMin: number | null;
     priceMax: number | null;
     bedsMin: number | null;
     bathsMin: number | null;
+    /** Every one of these must be in the listing's `core.features`. */
+    features: FeatureKey[];
     status: ListingStatus | "all";
 }
 
@@ -183,41 +162,41 @@ export const DEFAULT_FILTERS: ListingFilters = {
     query: "",
     kind: "all",
     source: "all",
+    propertyType: "all",
     priceMin: null,
     priceMax: null,
     bedsMin: null,
     bathsMin: null,
+    features: [],
     status: "all",
 };
 
-/** How many of the control-row filters are narrowing the list. Rent min and max count as one; the search box and the Show row are not counted. */
+/** How many filters are narrowing the list. Rent min and max count as one, each feature as one; the search box, kind and site are not counted. */
 export function activeFilterCount(filters: ListingFilters): number {
-    return [
-        filters.priceMin !== null || filters.priceMax !== null,
-        filters.bedsMin !== null,
-        filters.bathsMin !== null,
-        filters.status !== "all",
-    ].filter(Boolean).length;
+    return (
+        [
+            filters.propertyType !== "all",
+            filters.priceMin !== null || filters.priceMax !== null,
+            filters.bedsMin !== null,
+            filters.bathsMin !== null,
+            filters.status !== "all",
+        ].filter(Boolean).length + filters.features.length
+    );
 }
 
 export function isDefaultFilters(filters: ListingFilters): boolean {
     return activeFilterCount(filters) === 0 && filters.kind === "all" && filters.source === "all" && filters.query.trim() === "";
 }
 
-/**
- * A listing with no rent is excluded once either rent bound is set, and one
- * with no bedroom count once the bedroom bound is set: a bound is a question a
- * null cannot answer, and "show me under $2000" should not include listings
- * that might be anything. A building matches a bound when any of its plans
- * could: its cheapest rent against the maximum, its largest plan against the
- * minimum rooms.
- */
+/** A listing with no value for a bound is excluded once the bound is set. A building matches when any of its plans could: cheapest rent against the maximum, largest plan against the minimum rooms. */
 export function matchesFilters(listing: Listing, filters: ListingFilters, sourceLabel: string, terms?: readonly string[]): boolean {
     if (filters.kind !== "all" && listing.kind !== filters.kind) return false;
     if (filters.source !== "all" && listing.source !== filters.source) return false;
     if (filters.status !== "all" && listing.user.status !== filters.status) return false;
 
     const { core } = listing;
+    if (filters.propertyType !== "all" && core.propertyType !== filters.propertyType) return false;
+    if (!filters.features.every((feature) => core.features.includes(feature))) return false;
     if (filters.priceMin !== null || filters.priceMax !== null) {
         const low = core.rent.min ?? core.rent.max;
         const high = core.rent.max ?? core.rent.min;
@@ -246,13 +225,7 @@ export function isDefaultSort(sort: SortSpec): boolean {
     return sort.key === DEFAULT_SORT.key && sort.dir === DEFAULT_SORT.dir;
 }
 
-/**
- * Filter, sort, then -- only in the default view -- float the active tab's
- * listing to the top. The pin is a convenience for the list nobody has
- * arranged; once a sort is chosen it is honoured literally, or a reversed
- * order would look broken with one card refusing to move. The active card
- * keeps its accent border in every view, so it stays easy to find.
- */
+/** Filter, sort, then, only in the default view, float the active tab's listing to the top. A chosen sort is honoured literally. */
 export function orderForDisplay(
     listings: readonly Listing[],
     filters: ListingFilters,
@@ -269,9 +242,7 @@ export function orderForDisplay(
     return [...sorted.filter((l) => l.id === activeId), ...sorted.filter((l) => l.id !== activeId)];
 }
 
-// ---------------------------------------------------------------------------
-// Relations, read off the links the save stored (db/relations.ts).
-// ---------------------------------------------------------------------------
+// Relations, computed over the list: the same place on another site, and a home that is a unit of a saved building on the same site.
 
 export interface Relations {
     /** Other listings of the same place, by listing id, in list order. */
@@ -280,41 +251,55 @@ export interface Relations {
     unitsOf: Map<string, Listing[]>;
     /** The saved building a home is a unit of, by the home's id. */
     buildingOf: Map<string, Listing>;
-    /** Every listing by id, for naming what a jump goes to. */
+    /** Every listing by id. */
     byId: Map<string, Listing>;
 }
 
-export function relate(listings: readonly Listing[]): Relations {
+/** The ids a source reads off a listing's detail for linking (SourceDescriptor.linkIds). */
+export type LinkIdsOf = (listing: Listing) => LinkIds;
+
+/** Whether two different listings of the same kind describe the same place. */
+export function samePlace(a: Listing, b: Listing): boolean {
+    return a.id !== b.id && a.kind === b.kind && sameSubject(a.core, b.core);
+}
+
+/** Whether `home` is a unit of `building`: the building lists the home's id among its units, or the home names the building by its id or an alias. */
+export function isUnitOf(home: Listing, building: Listing, linkIdsOf: LinkIdsOf): boolean {
+    if (home.source !== building.source || home.kind !== "home" || building.kind !== "building") return false;
+    for (const plan of building.core.plans) for (const unit of plan.units) if (unit.id === home.sourceId) return true;
+    const keys = [building.sourceId, ...linkIdsOf(building).aliases];
+    return linkIdsOf(home).buildingIds.some((id) => keys.includes(id));
+}
+
+export function relate(listings: readonly Listing[], linkIdsOf: LinkIdsOf = () => NO_LINK_IDS): Relations {
+    const cache = new Map<string, LinkIds>();
+    const ids: LinkIdsOf = (listing) => {
+        let found = cache.get(listing.id);
+        if (!found) cache.set(listing.id, (found = linkIdsOf(listing)));
+        return found;
+    };
     const byId = new Map(listings.map((listing) => [listing.id, listing]));
-    const byProperty = new Map<string, Listing[]>();
-    for (const listing of listings) {
-        if (listing.propertyId) byProperty.set(listing.propertyId, [...(byProperty.get(listing.propertyId) ?? []), listing]);
-    }
     const siblings = new Map<string, Listing[]>();
     for (const listing of listings) {
-        const others = (byProperty.get(listing.propertyId) ?? []).filter((other) => other.id !== listing.id);
+        const others = listings.filter((other) => samePlace(listing, other));
         if (others.length) siblings.set(listing.id, others);
     }
+    const buildings = listings.filter((listing) => listing.kind === "building");
     const unitsOf = new Map<string, Listing[]>();
     const buildingOf = new Map<string, Listing>();
     for (const home of listings) {
-        const building = home.buildingId ? byId.get(home.buildingId) : undefined;
-        if (!building) continue; // a building since deleted
+        if (home.kind !== "home") continue;
+        const building = buildings.find((candidate) => isUnitOf(home, candidate, ids));
+        if (!building) continue;
         buildingOf.set(home.id, building);
         unitsOf.set(building.id, [...(unitsOf.get(building.id) ?? []), home]);
     }
     return { siblings, unitsOf, buildingOf, byId };
 }
 
-// ---------------------------------------------------------------------------
 // Selection
-// ---------------------------------------------------------------------------
 
-/**
- * Ids from the anchor to the target inclusive, in on-screen order. An anchor
- * that has left the screen (a re-render dropped it) degrades to just the
- * target; a target that is missing yields nothing.
- */
+/** Ids from the anchor to the target inclusive, in on-screen order. An anchor that left the screen degrades to just the target. */
 export function rangeBetween(orderedIds: readonly string[], anchorId: string, targetId: string): string[] {
     const target = orderedIds.indexOf(targetId);
     if (target === -1) return [];

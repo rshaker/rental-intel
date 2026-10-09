@@ -1,18 +1,13 @@
 import { liveQuery } from "dexie";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { getPhotos } from "../../db/photos";
-import { log, LogLevels } from "../../lib/logging";
+import { warn } from "../../lib/log";
 import { photoIndexOf, photoMode, setPhotoIndex } from "../store";
 import { useCarousel } from "./Card";
 
-/**
- * An open card's photos: one large photo with arrows (the carousel), or a
- * row of thumbnails (the strip), by the Images setting. The photos are a
- * live query over the database, so the ones a save is still fetching
- * appear as they land. Object URLs live only while the card is open.
- */
+/** An open card's photos: a carousel or a strip of thumbnails. A live query, so photos a save is still fetching appear as they land. */
 
-/** Every stored photo of a listing as object URLs, in the extractor's order, while mounted. */
+/** Every stored photo of a listing as object URLs, while mounted. */
 function usePhotoUrls(listingId: string): string[] {
     const [urls, setUrls] = useState<string[]>([]);
     useEffect(() => {
@@ -23,7 +18,7 @@ function usePhotoUrls(listingId: string): string[] {
                 current = photos.map((photo) => URL.createObjectURL(photo.blob));
                 setUrls(current);
             },
-            error: (error: unknown) => log(LogLevels.WARN, "photos query failed", error),
+            error: (error: unknown) => warn("photos query failed", error),
         });
         return () => {
             subscription.unsubscribe();
@@ -48,7 +43,6 @@ export function Photos({ listingId }: { listingId: string }) {
     return (
         <figure class="photo">
             <img src={urls[index]} alt="" />
-            {/* Wraps at both ends; the arrows disappear for a single photo. */}
             <div class="carousel-nav" hidden={count <= 1}>
                 <button type="button" class="carousel-prev" aria-label="Previous photo" onClick={() => show(index - 1)}>
                     ‹
@@ -62,15 +56,7 @@ export function Photos({ listingId }: { listingId: string }) {
     );
 }
 
-/**
- * Thumbnail mode: the same index is the highlighted thumbnail, kept scrolled
- * into view sideways only -- never scrolling the panel itself. A click makes
- * that photo current and shows it full-size in the active tab, as a history
- * entry, so Back returns to the listing. The tab goes to the extension's own
- * viewer page, which reads the photo from the database itself: tabs.update
- * accepts a blob: URL but never navigates to it, and an object URL would die
- * with this card anyway.
- */
+/** Thumbnails: a click makes that photo current and opens it full-size in the active tab through the viewer page, so Back returns to the listing. */
 function Strip({ listingId, urls, index, onShow }: { listingId: string; urls: string[]; index: number; onShow(index: number): void }) {
     const strip = useRef<HTMLDivElement>(null);
     useEffect(() => {

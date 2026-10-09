@@ -131,6 +131,11 @@ body {
     color: var(--ok);
 }
 
+/* The offer to enable the tab's site keeps its one line. */
+.capture #enable-source {
+    flex: none;
+}
+
 /* The filters are a card like a listing's: a header row that folds the rest. */
 .filters {
     margin: 8px 16px 10px;
@@ -249,6 +254,67 @@ body {
 
 .row-body .push {
     margin-left: auto;
+}
+
+/* The Features row takes the whole width: a head line that folds the boxes
+   (and, folded, names the chosen ones), then one line per group: its name,
+   and its boxes in columns that refill as the panel is resized. The box
+   cells are the Search tab's, so the two forms look alike. */
+.features {
+    grid-column: 1 / -1;
+    padding: 3px 0;
+}
+
+.features-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.features-head .row-label {
+    padding-top: 0;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 2px 12px;
+    margin-top: 4px;
+}
+
+.feature-group {
+    color: var(--muted);
+    line-height: 22px;
+}
+
+.feature-boxes {
+    display: grid;
+    /* Wide enough for "Controlled access" and "Income restricted" at 12px. */
+    grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+    gap: 0 10px;
+}
+
+.feature-boxes label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    height: 22px;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.feature-boxes input[type="checkbox"] {
+    flex: none;
+    width: 13px;
+    height: 13px;
+    margin: 0;
+}
+
+.feature-boxes span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 /* A body that stacks: each .group is one line of controls, all left-aligned. */

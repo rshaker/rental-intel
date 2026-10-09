@@ -1,12 +1,4 @@
-/**
- * Saving text to a file the user names and places. The File System Access
- * API gives Chrome's own Save As dialog from an extension page with no extra
- * permission (the `downloads` permission would add a "manage your downloads"
- * warning for the same result), pre-fills the name, and reopens the folder
- * chosen last time under the same `id`. A browser without the API gets the
- * plain download, which lands in the downloads folder under the suggested
- * name -- and the caller is told which happened, so it can say so.
- */
+/** Saving text to a file the user names, through the File System Access API (no `downloads` permission needed); a browser without it gets a plain download. */
 
 export type SaveOutcome = "saved" | "cancelled" | "downloaded";
 
@@ -28,10 +20,7 @@ export interface FileKind {
 const JSON_BACKUP: FileKind = { description: "JSON backup", mime: "application/json", extension: ".json" };
 export const URL_LIST: FileKind = { description: "URL list", mime: "text/plain", extension: ".txt" };
 
-/**
- * Opens the dialog first, so it runs inside the click that allowed it, then
- * asks for the text: a 13 MB serialization is not paid for on a cancel.
- */
+/** Opens the dialog first, inside the click that allowed it, then asks for the text. */
 export async function saveTextAs(suggestedName: string, text: () => Promise<string>, kind: FileKind = JSON_BACKUP): Promise<SaveOutcome> {
     const picker = (window as unknown as { showSaveFilePicker?: SavePicker }).showSaveFilePicker;
     if (typeof picker !== "function") {
@@ -60,6 +49,5 @@ function download(text: string, name: string, kind: FileKind): void {
     link.href = url;
     link.download = name;
     link.click();
-    // Revoking at once can abort the download Chrome has just started.
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

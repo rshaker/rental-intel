@@ -1,18 +1,11 @@
 import type { Address, GeoPoint } from "../../db/types";
 import { clean, num, record, str } from "./values";
 
-/**
- * Reading JSON-LD (`<script type="application/ld+json">`). Sites emit it for
- * crawlers, so it survives redesigns better than any CSS selector, and it
- * often carries the clean address, the coordinates and the phone number.
- *
- * Every reader takes an explicit `doc` so it can run over a parsed fixture
- * in a unit test as well as inside a content script.
- */
+/** Reading JSON-LD, which sites emit for crawlers and so survives redesigns better than selectors. */
 
 export type LdNode = Record<string, unknown>;
 
-/** Every node from every JSON-LD block on the page, `@graph` and arrays flattened. Malformed blocks are skipped. */
+/** Every node from every JSON-LD block on the page, flattened; malformed blocks are skipped. */
 export function ldNodes(doc: Document): LdNode[] {
     const nodes: LdNode[] = [];
     for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
@@ -21,13 +14,12 @@ export function ldNodes(doc: Document): LdNode[] {
         try {
             nodes.push(...flattenLd(JSON.parse(text)));
         } catch {
-            // Sites ship several of these and some are malformed. Keep looking.
         }
     }
     return nodes;
 }
 
-/** JSON-LD arrives as an object, an array of them, or wrapped in @graph; a node's own lists (`mentions`, `itemListElement`) are not descended. */
+/** An object, an array of them, or a `@graph`, as a flat list of nodes. */
 export function flattenLd(value: unknown): LdNode[] {
     if (Array.isArray(value)) return value.flatMap(flattenLd);
     const node = record(value);

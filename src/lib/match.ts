@@ -1,18 +1,13 @@
 import type { Address, CoreFields, GeoPoint } from "../db/types";
 
 /**
- * Whether two listings describe the same place. Pure, so it can be pinned in
- * a unit test; the panel runs it over every pair at render time to draw the
- * "also on …" links, and a later version will run it at capture time to
- * attach a listing to a property.
- *
- * Two listings match when their street addresses agree, or when they sit
- * within a few tens of metres of each other and neither address contradicts
- * the other. A building and one of its units share an address, so a unit
- * designation must agree too when both sides give one.
+ * Whether two listings describe the same place: their street addresses
+ * agree, or they sit within a few tens of metres and neither address
+ * contradicts the other. A building and one of its units share an address,
+ * so a unit designation must agree too when both sides give one.
  */
 
-/** ~30 m: the same building, not the one next door. */
+/** The same building, not the one next door. */
 const NEARBY_METRES = 30;
 
 const STREET_WORDS: Record<string, string> = {
@@ -61,11 +56,7 @@ export function normalizeUnit(text: string | null): string | null {
     return cleaned || null;
 }
 
-/**
- * A key two listings at the same street address share: street line plus zip
- * (or city when the zip is missing). Null when the address has no street
- * line -- a name alone is not an address.
- */
+/** A key two listings at the same street address share: street line plus zip, or city. Null without a street line. */
 export function addressKey(address: Address): string | null {
     const street = normalizeStreet(address.line1 ?? streetLineOf(address.text));
     if (!street) return null;
@@ -73,11 +64,7 @@ export function addressKey(address: Address): string | null {
     return `${street}|${area}`;
 }
 
-/**
- * The part of a free-text address before the first comma, when it looks like
- * a street line: it starts with a number. "The Juniper, Springfield" is a name,
- * not a street, and must not become a key.
- */
+/** The part of a free-text address before the first comma, when it starts with a number. */
 function streetLineOf(text: string | null): string | null {
     const first = text?.split(",")[0]?.trim() || null;
     return first && /^\d/.test(first) ? first : null;

@@ -1,23 +1,10 @@
 import { expect, fixtureHtml, openPanel, test } from "../harness/extension";
 
-/**
- * Searching apartments.com from the Search tab. The site resolves free text
- * through its own search box, so the run opens the home page (the trimmed
- * capture) in the tab beside the panel and the content script drives the
- * box; a script added here stands in for the site's typeahead, drawing the
- * box late and offering an Areas suggestion whose click goes to the results
- * page (the placard fixture). Then a pasted URL that lands on the site's
- * not-found page ends the run at once with the reason, instead of waiting
- * out the budget.
- */
+/** Searching apartments.com from the Search tab: the content script submits the site's own box (a script here stands in for the typeahead), pages of results are joined, and a pasted URL on the not-found page ends the run with the reason. */
 
 const RESULTS_URL = "https://www.apartments.com/austin-tx-78701/";
 
-/**
- * The site's typeahead, as far as the driver needs it. The box is taken out
- * of the document and put back late, as the live site draws it well after
- * load: the driver's first look finds nothing and it must try again.
- */
+/** The site's typeahead, drawn late as the live site draws it. */
 const TYPEAHEAD = `<script>
     const section = document.querySelector("#homepage-smart-search");
     const parent = section.parentNode;
@@ -51,7 +38,7 @@ async function serveSite(context: import("@playwright/test").BrowserContext, typ
     await context.route("https://images1.apartments.com/**", (route) => route.fulfill({ status: 404 }));
 }
 
-test("free text is typed into the site's own box, and its suggestion leads to the results in the tab beside the panel", async ({ context, extensionId }) => {
+test("free text is typed into the site's own box, and its suggestion leads to the results in the active tab", async ({ context, extensionId }) => {
     await serveSite(context, TYPEAHEAD);
     const panel = await openPanel(context, extensionId, 0);
     await panel.locator('.tabs button[data-tab="search"]').click();

@@ -10,37 +10,19 @@ import "./LoadDialog.css";
 
 /**
  * The "Load URLs" dialog: paste or choose a list, check it, run it, watch it.
- *
- * A native <dialog>, shown modally, so a run in progress cannot be tripped
- * over by an import or a clear-all from the row behind it. The log keeps
- * everything said since the panel opened -- one line per listing, plus the
- * plan of each run -- because a run of fifty pages takes minutes and the
- * question afterwards is always "which ones didn't make it".
- *
- * Phases, each with its own set of buttons:
- *   compose  the textarea, a file button that appends into it, "Check list"
- *   ready    the plan is in the log; Start or Back
- *   running  Pause and Cancel; while the run waits on the person at the
- *            tab (a page that has not confirmed in its budget), Retry, Skip
- *            and Cancel
- *   paused   Resume and Cancel
- *   done     Load more or Close
- *
- * Escape closes the dialog only when nothing is running.
+ * A native <dialog>, shown modally, so nothing behind it changes the database
+ * mid-run. Phases: compose (the textarea and Check list), ready (Start or
+ * Back), running (Cancel, and Skip while the run waits on the person at the
+ * tab), done (Load more or Close). Escape closes it only when nothing runs.
  */
 
-type Phase = "compose" | "ready" | "running" | "paused" | "done";
+type Phase = "compose" | "ready" | "running" | "done";
 type Tone = "" | "good" | "bad" | "dim";
-
-interface Plan {
-    entries: UrlEntry[];
-}
 
 const BUTTONS: Record<Phase, string[]> = {
     compose: ["file", "check", "clear-log", "close"],
     ready: ["start", "back"],
-    running: ["pause", "cancel"],
-    paused: ["resume", "cancel"],
+    running: ["cancel"],
     done: ["more", "clear-log", "close"],
 };
 
@@ -48,7 +30,7 @@ const BUTTONS: Record<Phase, string[]> = {
 const requests = signal<{ seq: number; urls?: string } | null>(null);
 let sequence = 0;
 
-/** Opens the dialog. With `urls` -- a list from elsewhere in the panel -- the list is put in and checked, ready for Start. A run in progress is left alone. */
+/** Opens the dialog. With `urls`, the list is put in and checked, ready for Start. A run in progress is left alone. */
 export function openLoadDialog(urls?: string): void {
     requests.value = { seq: ++sequence, urls };
 }
@@ -70,11 +52,9 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
     const [phase, setPhase] = useState<Phase>("compose");
     const [text, setText] = useState("");
     const [log, setLog] = useState<{ text: string; tone: Tone }[]>([]);
-    /** Pause was asked for; the run parks after the listing in flight. */
-    const [pausing, setPausing] = useState(false);
     /** The run is waiting on the person at the tab; Skip gives up on the listing in flight. */
     const [waiting, setWaiting] = useState(false);
-    const plan = useRef<Plan | null>(null);
+    const plan = useRef<UrlEntry[] | null>(null);
     const control = useRef<BulkControl | null>(null);
 
     const say = (message: string, tone: Tone = ""): void => {
@@ -90,13 +70,7 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
         if (!dialog.current?.open) dialog.current?.showModal();
     };
 
-    // -- compose -> ready ---------------------------------------------------
-
-    /**
-     * Listings already in the database are left out: the point of a list is to
-     * get a shortlist in, not to re-visit fifty pages for a price check. Re-save
-     * one from its own page when it matters.
-     */
+    /** Listings already in the database are left out: re-save one from its own page when a price check matters. */
     const check = async (list: string): Promise<void> => {
         const parsed = parseUrlList(list, isEnabled);
         const entries: UrlEntry[] = [];
@@ -120,12 +94,11 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
         const sites = new Map<string, number>();
         for (const entry of entries) sites.set(entry.ref.source, (sites.get(entry.ref.source) ?? 0) + 1);
         const bySite = [...sites].map(([source, n]) => `${n} from ${source}`).join(", ");
-        say(`Ready to load ${plural(entries.length, "listing")} (${bySite}) in the tab beside the panel, one at a time.`);
-        plan.current = { entries };
+        say(`Ready to load ${plural(entries.length, "listing")} (${bySite}) in the active tab, one at a time.`);
+        plan.current = entries;
         setPhase("ready");
     };
 
-    // The requests to open, from elsewhere in the panel.
     const request = requests.value;
     useEffect(() => {
         if (!request) return;
@@ -142,8 +115,6 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
         if (control.current === null && !plan.current) setTimeout(() => textarea.current?.focus(), 0);
     }, [request?.seq]);
 
-    // -- ready -> running -> done -------------------------------------------
-
     const summary = (progress: BulkProgress): string => {
         const counts = [progress.saved ? `${progress.saved} saved` : "", progress.unchanged ? `${progress.unchanged} unchanged` : "", progress.failed.length ? `${progress.failed.length} failed` : ""].filter(Boolean).join(", ");
         const ending = progress.stopped === "cancelled" ? " Cancelled." : progress.stopped === "failures" ? " Stopped after repeated failures." : "";
@@ -159,11 +130,7 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
                 return;
             case "waiting":
                 setWaiting(true);
-                say(`Waiting on the tab: ${event.reason}. Answer any check the site shows there, Retry the page, or Skip it.`, "dim");
-                return;
-            case "retrying":
-                setWaiting(false);
-                say("Retrying.", "dim");
+                say(`Waiting on the tab: ${event.reason}. Answer any check the site shows there, or Skip the page.`, "dim");
                 return;
             case "result": {
                 if (event.outcome === "failed") {
@@ -174,27 +141,18 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
                 say(`    ${event.outcome === "saved" ? "saved" : "unchanged"}: ${listing ? displayName(listing) : event.ref.sourceId}`, "good");
                 return;
             }
-            case "paused":
-                say("Paused.", "dim");
-                setPhase("paused");
-                return;
-            case "resumed":
-                say("Resumed.", "dim");
-                setPhase("running");
-                return;
             case "done":
                 say(summary(progress), progress.failed.length ? "bad" : "good");
-                if (progress.stopped === "failures") say("Look at the loading tab -- the site may be asking you to prove you are a person.", "bad");
+                if (progress.stopped === "failures") say("Look at the loading tab: the site may be asking you to prove you are a person.", "bad");
                 return;
         }
     };
 
     const start = async (): Promise<void> => {
         if (!plan.current) return;
-        const { entries } = plan.current;
+        const entries = plan.current;
         plan.current = null;
         control.current = new BulkControl();
-        setPausing(false);
         setPhase("running");
         say(`Started at ${new Date().toLocaleTimeString()}.`, "dim");
         let last: BulkProgress | null = null;
@@ -210,7 +168,6 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
             say(`Load failed: ${error instanceof Error ? error.message : String(error)}`, "bad");
         } finally {
             control.current = null;
-            setPausing(false);
             setWaiting(false);
             setPhase("done");
             if (last) onStatus(summary(last));
@@ -232,25 +189,8 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
                 plan.current = null;
                 setPhase("compose");
                 break;
-            case "pause":
-                // Takes effect once the listing in flight is finished; the log says "Paused." when the run has actually parked.
-                control.current?.pause();
-                say("Pausing after the current listing…", "dim");
-                setPausing(true);
-                break;
-            case "resume":
-                if (control.current?.paused) {
-                    control.current.resume();
-                    // Resumed before it ever parked: no "Resumed." will come.
-                    if (phase === "running") say("Carrying on.", "dim");
-                }
-                setPausing(false);
-                break;
             case "skip":
                 control.current?.skip();
-                break;
-            case "retry":
-                control.current?.retry();
                 break;
             case "cancel":
                 control.current?.cancel();
@@ -269,12 +209,7 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
         }
     };
 
-    const visible = (action: string): boolean => {
-        if (action === "pause") return phase === "running" && !pausing && !waiting;
-        if (action === "resume") return phase === "paused" || (phase === "running" && pausing);
-        if (action === "skip" || action === "retry") return phase === "running" && waiting;
-        return BUTTONS[phase].includes(action);
-    };
+    const visible = (action: string): boolean => (action === "skip" ? phase === "running" && waiting : BUTTONS[phase].includes(action));
 
     return (
         <dialog
@@ -282,9 +217,8 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
             class="load-dialog"
             ref={dialog}
             aria-labelledby="load-title"
-            // Escape must not abandon a run; the buttons are how it stops.
             onCancel={(event) => {
-                if (control.current !== null) event.preventDefault();
+                if (control.current !== null) event.preventDefault(); // Escape must not abandon a run
             }}
         >
             <h2 id="load-title">Load listings</h2>
@@ -323,9 +257,6 @@ export function LoadDialog({ onStatus, onLine, isEnabled }: LoadDialogProps) {
                         ["check", "Check list", "tool"],
                         ["start", "Start", "tool"],
                         ["back", "Back", "tool"],
-                        ["pause", "Pause", "tool"],
-                        ["resume", "Resume", "tool"],
-                        ["retry", "Retry", "tool"],
                         ["skip", "Skip", "tool"],
                         ["cancel", "Cancel", "tool danger"],
                         ["more", "Load more…", "tool"],

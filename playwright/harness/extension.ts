@@ -6,15 +6,7 @@ import { fileURLToPath } from "node:url";
 const DIST = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "dist-e2e");
 export const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
 
-/**
- * Fixtures that load the built extension into a persistent context -- the only
- * kind of context Chrome will accept `--load-extension` for -- and expose the
- * generated extension id, which every chrome-extension:// URL needs.
- *
- * The build must be the E2E one (`npm run build:e2e`): it carries the example
- * source and declares every source's hosts as required, so no permission
- * prompt stands between a test and a content script.
- */
+/** Fixtures that load the test build into a persistent context (the only kind that takes `--load-extension`) and expose the extension id. */
 export const test = base.extend<{ context: BrowserContext; extensionId: string }>({
     context: async ({ }, use) => {
         const context = await chromium.launchPersistentContext("", {
@@ -38,11 +30,7 @@ export async function workerOf(context: BrowserContext): Promise<Worker> {
     return context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
 }
 
-/**
- * The side panel as a page of its own, with `expectedCards` cards drawn. Note
- * that opening it makes it the active tab: a test that wants the panel to talk
- * about a listing brings that listing's page to the front afterwards.
- */
+/** The side panel as a page of its own, with `expectedCards` cards drawn. Opening it makes it the active tab. */
 export async function openPanel(context: BrowserContext, extensionId: string, expectedCards: number): Promise<Page> {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/panel/index.html`);
@@ -50,10 +38,7 @@ export async function openPanel(context: BrowserContext, extensionId: string, ex
     return page;
 }
 
-// ---------------------------------------------------------------------------
-// The example site, served from fixtures. Every request to listings.example
-// is answered locally, so no test ever touches the network.
-// ---------------------------------------------------------------------------
+// The example site, served from fixtures; no test touches the network.
 
 export const EXAMPLE = {
     building: { url: "https://listings.example/l/juniper01/", id: "juniper01", name: "The Juniper Lofts", file: "example-building.html" },

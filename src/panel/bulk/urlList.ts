@@ -3,18 +3,7 @@ import type { SourceDescriptor } from "../../sources/contract";
 import { sourceForUrl } from "../../sources";
 import type { SourceId } from "../../sources/descriptors";
 
-/**
- * Reading a user-supplied list of listing URLs: one per line, plain text.
- *
- * Pure string logic, so the unit tests can pin it without a browser. The
- * tolerance here is deliberate and small: blank lines and `#` comments are
- * ignored, a missing scheme is forgiven, and only the first whitespace-separated
- * token of a line is read, so a line pasted from a document as
- * `<url> -- my note` still loads. Anything that is not a listing URL of a
- * known site is reported back rather than guessed at; a listing on a site
- * that is known but not enabled is reported separately, since the fix is a
- * switch on the Sources tab.
- */
+/** Reading a list of listing URLs, one per line. Blank lines and `#` comments are ignored, a missing scheme is forgiven, and only the first token of a line is read. */
 
 export interface UrlEntry {
     /** The URL as it will be loaded, normalised by the URL parser. */

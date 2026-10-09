@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectListing, extractCapture } from "../../content/detect";
+import { detectListing, manualCapture } from "../../content/detect";
 import { zillowPage } from "./page";
 import { availabilityFrom, buildingFrom, homeFrom, propertyTypeFrom, unitStatusFrom } from "./page/fields";
 import type { ZillowDetail } from "./types";
@@ -94,12 +94,12 @@ describe("zillowSearch", () => {
         };
         const doc = new DOMParser().parseFromString(`<html><body><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(payload)}</script></body></html>`, "text/html");
         expect(zillowPage.searchResults!(doc, "https://www.zillow.com/austin-tx/rentals/")).toEqual([
-            { title: "710 E Dean Keeton St #111, Austin, TX 78705", url: HOME_URL, priceText: "$1,150/mo", price: 1150, factsText: "1bd/1ba · 600 sqft", ref: { sourceId: "450233440", kind: "home" } },
-            { title: "Lenox Grand", url: BUILDING_URL, priceText: "$1,426+", price: 1426, factsText: "Studio", ref: { sourceId: "CmB93F", kind: "building" } },
+            { title: "710 E Dean Keeton St #111, Austin, TX 78705", url: HOME_URL, priceText: "$1,150/mo", factsText: "1bd/1ba · 600 sqft", kind: "home" },
+            { title: "Lenox Grand", url: BUILDING_URL, priceText: "$1,426+", factsText: "Studio", kind: "building" },
             // The address heads the row; the name the site ran into it, or gave beside it, ends the facts.
-            { title: "1800 Lavaca St #503, Austin, TX 78701", url: "https://www.zillow.com/apartments/austin-tx/the-arbor/Cj8kQ2/", priceText: "$1,900/mo", price: 1900, factsText: "1bd/1ba · The Arbor", ref: { sourceId: "Cj8kQ2", kind: "building" } },
-            { title: "2200 Nueces St #101, Austin, TX 78705", url: "https://www.zillow.com/apartments/austin-tx/pecan-flats/5Xk9Qa/", priceText: "$1,825/mo", price: 1825, factsText: "Pecan Flats | Renovated Studios & One Bedrooms", ref: { sourceId: "5Xk9Qa", kind: "building" } },
-            { title: "4100 Duval St, Austin, TX 78751", url: "https://www.zillow.com/apartments/austin-tx/mesa-court/5Xm2wT/", priceText: "$1,700+", price: 1700, factsText: "Mesa Court", ref: { sourceId: "5Xm2wT", kind: "building" } },
+            { title: "1800 Lavaca St #503, Austin, TX 78701", url: "https://www.zillow.com/apartments/austin-tx/the-arbor/Cj8kQ2/", priceText: "$1,900/mo", factsText: "1bd/1ba · The Arbor", kind: "building" },
+            { title: "2200 Nueces St #101, Austin, TX 78705", url: "https://www.zillow.com/apartments/austin-tx/pecan-flats/5Xk9Qa/", priceText: "$1,825/mo", factsText: "Pecan Flats | Renovated Studios & One Bedrooms", kind: "building" },
+            { title: "4100 Duval St, Austin, TX 78751", url: "https://www.zillow.com/apartments/austin-tx/mesa-court/5Xm2wT/", priceText: "$1,700+", factsText: "Mesa Court", kind: "building" },
         ]);
 
         const cards = new DOMParser().parseFromString(
@@ -107,7 +107,7 @@ describe("zillowSearch", () => {
             "text/html",
         );
         expect(zillowPage.searchResults!(cards, "https://www.zillow.com/austin-tx/rentals/")).toEqual([
-            { title: "710 E Dean Keeton St #111", url: HOME_URL, priceText: "$1,150/mo", price: 1150, factsText: "1 bds · 1 ba", ref: { sourceId: "450233440", kind: "home" } },
+            { title: "710 E Dean Keeton St #111", url: HOME_URL, priceText: "$1,150/mo", factsText: "1 bds · 1 ba", kind: "home" },
         ]);
     });
 });
@@ -116,7 +116,6 @@ describe("zillowUrls", () => {
     it("takes a building named by its coordinates, as a search result links it, under a provisional id", () => {
         expect(zillowUrls.parse("https://www.zillow.com/b/building/30.254986,-97.79872_ll/")).toEqual({ sourceId: "ll:30.254986,-97.79872", kind: "building" });
         expect(kindOfZillowId("ll:30.254986,-97.79872")).toBe("building");
-        expect(zillowUrls.listing("ll:30.254986,-97.79872")).toBeNull();
     });
 
     it("tells homes from buildings by the URL shape", () => {
@@ -128,9 +127,7 @@ describe("zillowUrls", () => {
         expect(zillowUrls.parse("https://www.apartments.com/x/450233440_zpid/")).toBeNull();
     });
 
-    it("builds a home's page from its zpid and nothing for a building", () => {
-        expect(zillowUrls.listing("450233440")).toBe("https://www.zillow.com/homedetails/450233440_zpid/");
-        expect(zillowUrls.listing("CmB93F")).toBeNull();
+    it("tells a building key from a zpid", () => {
         expect(kindOfZillowId("CmB93F")).toBe("building");
         expect(zillowUrls.canonical(`${HOME_URL}?utm=1#x`)).toBe(HOME_URL);
     });
@@ -142,7 +139,7 @@ describe("a Zillow home page", () => {
     it("is confirmed with every probe present", () => {
         const detection = detectListing(zillowPage, doc, HOME_URL);
         expect(detection.confirmed).toBe(true);
-        expect(detection.signals.map((s) => [s.name, s.present])).toEqual([
+        expect(detection.results.map((s) => [s.name, s.matched])).toEqual([
             ["hydration", true],
             ["canonical", true],
             ["metadata", true],
@@ -156,13 +153,15 @@ describe("a Zillow home page", () => {
     });
 
     it("maps the property node onto core", () => {
-        const capture = extractCapture(zillowPage, doc, HOME_URL)!;
+        const capture = manualCapture(zillowPage, doc, HOME_URL)!;
         expect(capture.kind).toBe("home");
         expect(capture.core.address).toEqual({ line1: "710 E Dean Keeton St", unit: "111", city: "Austin", state: "TX", zip: "78705", text: "710 E Dean Keeton St #111, Austin, TX 78705" });
         expect(capture.core.rent.min).toBeGreaterThan(0);
         expect(capture.core.rent.min).toBe(capture.core.rent.max);
         expect(capture.core.beds).toEqual({ min: 1, max: 1 });
         expect(capture.core.propertyType).toBe("apartment");
+        // `allowedPets` says "Cats, Small Dogs"; `laundryFeatures` says "None", which is nothing.
+        expect(capture.core.features).toEqual(["smallDogs", "cats"]);
         expect(capture.core.geo?.lat).toBeCloseTo(30.29, 1);
         expect(capture.core.photoUrls.length).toBeGreaterThan(0);
         expect(capture.core.photoUrls.every((u) => u.includes("zillowstatic.com"))).toBe(true);
@@ -173,10 +172,6 @@ describe("a Zillow home page", () => {
         expect(detail.buildingKey).toBe("CvBTSB");
         expect(detail.buildingLotId).toBe("2796925986");
         expect(detail.buildingUrl).toBe("https://www.zillow.com/b/710-e-dean-keeton-st-austin-tx-CvBTSB/");
-        expect(detail.via).toBe("hydration");
-        // The raw capture is the node, not the whole payload.
-        expect(typeof capture.raw).toBe("object");
-        expect((capture.raw as Record<string, unknown>)["zpid"]).toBeDefined();
     });
 });
 
@@ -185,7 +180,7 @@ describe("a Zillow building page", () => {
 
     it("is confirmed and maps floor plans and units", () => {
         expect(detectListing(zillowPage, doc, BUILDING_URL).confirmed).toBe(true);
-        const capture = extractCapture(zillowPage, doc, BUILDING_URL)!;
+        const capture = manualCapture(zillowPage, doc, BUILDING_URL)!;
         expect(capture.kind).toBe("building");
         expect(capture.core.name).toBe("Lenox Grand");
         expect(capture.core.address.text).toBe("13505 Burnet Rd, Austin, TX 78727");
@@ -201,6 +196,8 @@ describe("a Zillow building page", () => {
         expect(capture.core.availableUnits).toBe(units.length);
         expect(capture.core.availableFrom).toBe("now");
         expect(capture.core.amenities).toContain("Granite Counter Tops");
+        // Typed fields first (pets, appliances, floor coverings, a parking policy, the fitness room, the pool, gated entry), then the labels ("ADA Accessible Apartment").
+        expect(capture.core.features).toEqual(["smallDogs", "largeDogs", "cats", "laundryInUnit", "hardwood", "parking", "accessible", "gym", "pool", "controlledAccess"]);
         expect(capture.core.pets).toMatch(/^Cats, Large dogs, Small dogs allowed/);
         expect(capture.core.fees.map((f) => f.label)).toContain("Cats fee");
         const detail = capture.detail.data as ZillowDetail;
@@ -222,8 +219,8 @@ describe("a Zillow /b/ building page", () => {
     it("is confirmed with every probe present", () => {
         const detection = detectListing(zillowPage, doc, url);
         expect(detection.confirmed).toBe(true);
-        expect(detection.subject).toBe("CvBTSB");
-        expect(detection.signals.map((s) => [s.name, s.present])).toEqual([
+        expect(detection.listingId).toBe("CvBTSB");
+        expect(detection.results.map((s) => [s.name, s.matched])).toEqual([
             ["hydration", true],
             ["canonical", true],
             ["metadata", true],
@@ -232,7 +229,7 @@ describe("a Zillow /b/ building page", () => {
     });
 
     it("maps the building and every home at the lot, offering only the five for rent", () => {
-        const capture = extractCapture(zillowPage, doc, url)!;
+        const capture = manualCapture(zillowPage, doc, url)!;
         expect(capture.kind).toBe("building");
         expect(capture.sourceId).toBe("CvBTSB");
         expect(capture.core.name).toBeNull(); // the site gives this lot no name; the card shows the address
@@ -241,6 +238,8 @@ describe("a Zillow /b/ building page", () => {
         expect(capture.core.rent).toEqual({ min: 995, max: 1495 });
         expect(capture.core.availableUnits).toBe(5);
         expect(capture.core.availableFrom).toBe("now");
+        // "Dishwasher" is not a washer: the appliances list names no laundry.
+        expect(capture.core.features).toEqual(["dishwasher"]);
         const units = capture.core.plans.flatMap((p) => p.units);
         expect(units).toHaveLength(27);
         expect(units.filter((u) => u.status === "for-rent").map((u) => [u.name, u.rent, u.availableFrom])).toEqual([

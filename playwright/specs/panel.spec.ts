@@ -2,12 +2,7 @@ import { EXAMPLE, expect, openPanel, serveExampleSite, test, waitForContentScrip
 import { seedListing } from "../harness/seed";
 import type { Page } from "@playwright/test";
 
-/**
- * The listings tab with more than one listing in it: search narrows the
- * list, the filters and the sort do what they say, an open card shows what
- * the site said and what the user wrote, user edits survive a re-capture,
- * a selection can be deleted, and a backup round-trips.
- */
+/** The Listings tab with several listings: search, filters and sort; an open card; user edits across a re-capture; selection and delete; backup round trips. */
 
 test.beforeEach(async ({ context }) => {
     if (context.serviceWorkers().length === 0) await context.waitForEvent("serviceworker");
@@ -71,6 +66,31 @@ test("search, filters and sort narrow and order the list", async ({ context, ext
     await expect(panel.locator(".card")).toHaveCount(0);
     await panel.locator("#clear-filters").click();
     await expect(panel.locator(".card")).toHaveCount(2);
+
+    // Type and features, as each site's plugin mapped them at capture: the
+    // building says "In-unit laundry" and welcomes cats and dogs, the house
+    // "Off-street parking" and "No pets".
+    await panel.locator("#type-filter").selectOption("house");
+    await expect.poll(() => titles(panel)).toEqual([EXAMPLE.home.name]);
+    await panel.locator("#type-filter").selectOption("all");
+    // The boxes are folded until asked for; folded, the row names what is chosen.
+    await expect(panel.locator("#features")).toBeHidden();
+    await expect(panel.locator("#features-chosen")).toHaveCount(0);
+    await panel.locator("#features-toggle").click();
+    await panel.locator("#feature-laundryInUnit").check();
+    await expect.poll(() => titles(panel)).toEqual([EXAMPLE.building.name]);
+    await panel.locator("#feature-cats").check();
+    await expect(panel.locator("#count")).toHaveText("1 of 2");
+    await panel.locator("#feature-parking").check();
+    await expect(panel.locator(".card")).toHaveCount(0);
+    await panel.locator("#feature-laundryInUnit").uncheck();
+    await panel.locator("#feature-cats").uncheck();
+    await expect.poll(() => titles(panel)).toEqual([EXAMPLE.home.name]);
+    await panel.locator("#features-toggle").click();
+    await expect(panel.locator("#features-chosen")).toHaveText("Parking");
+    await panel.locator("#clear-filters").click();
+    await expect(panel.locator(".card")).toHaveCount(2);
+    await expect(panel.locator("#features-chosen")).toHaveCount(0);
 
     // Reset in the title row sets no filters at all (the site filter is still
     // set from above, so it shows) and keeps the search text.
@@ -150,7 +170,7 @@ test("an open card shows the site's data and keeps the user's edits through a re
     await button.click();
     await expect(panel.locator("#capture-note")).toHaveText("Already up to date.");
     const worker = await workerOf(context);
-    const user = await worker.evaluate(async () => (await __intel!.list!())[0]!.user);
+    const user = await worker.evaluate(async () => (await __intel!.db.listings.orderBy("updatedAt").reverse().toArray())[0]!.user);
     expect(user).toEqual({ status: "interested", notes: "Ask about the corner units", links: ["https://example.com/tour"] });
 
     // The search finds the note.
@@ -175,11 +195,9 @@ test("selection, delete, export and import", async ({ context, extensionId }) =>
     await expect(panel.locator("#confirm-text")).toContainText("Delete 2 listings?");
     await panel.locator('#list-tools button[data-action="confirm-delete"]').click();
     await expect.poll(() => titles(panel)).toEqual(["Seed 3"]);
-    expect(await worker.evaluate(() => __intel!.db!.listings.count())).toBe(1);
+    expect(await worker.evaluate(() => __intel!.db.listings.count())).toBe(1);
 
-    // Export, clear, import, on the Data tab: the listing comes back. The
-    // Save As dialog cannot be driven, so a stand-in takes what would be
-    // written; the file then goes back in through the file input.
+    // Export, clear, import: a stand-in for the Save As dialog takes what would be written.
     await panel.locator('.tabs button[data-tab="data"]').click();
     await expect(panel.locator("#data")).toBeVisible();
     await expect(panel.locator("#export-size")).toHaveText("(1 listing, 0 photos)");
@@ -195,7 +213,7 @@ test("selection, delete, export and import", async ({ context, extensionId }) =>
         });
     });
     await panel.locator("#export").click();
-    await expect(panel.locator("#data-status")).toHaveText(/^Exported 1 listing and 0 photos \(\d+ kB\) to rental-intel-backup-.*\.json\.$/);
+    await expect(panel.locator("#data-status")).toHaveText(/^Exported 1 listing and 0 photos \(\d+ (?:bytes|kB)\) to rental-intel-backup-.*\.json\.$/);
     const [name, text] = await panel.evaluate(() => (window as unknown as { __saved: [string, string] }).__saved);
     expect(name).toMatch(/^rental-intel-backup-.*\.json$/);
     await panel.locator("#clear-all").click();
@@ -236,7 +254,7 @@ test("a backup goes through the clipboard, and the log can be copied and cleared
 
     // Copy, clear, paste back.
     await panel.locator("#copy-json").click();
-    await expect(panel.locator("#data-status")).toHaveText(/^Copied 1 listing and 0 photos \(\d+ kB\) to the clipboard\.$/);
+    await expect(panel.locator("#data-status")).toHaveText(/^Copied 1 listing and 0 photos \(\d+ (?:bytes|kB)\) to the clipboard\.$/);
     const copied = await panel.evaluate(() => navigator.clipboard.readText());
     expect(JSON.parse(copied)).toMatchObject({ format: "rental-intel-backup" });
     await panel.locator("#clear-all").click();

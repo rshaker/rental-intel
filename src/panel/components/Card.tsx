@@ -4,27 +4,22 @@ import { updateUserFields } from "../../db/listings";
 import type { Settings } from "../../db/settingsSchema";
 import { LISTING_STATUSES, STATUS_LABELS, displayName, type Listing, type ListingStatus } from "../../db/types";
 import type { DetailRow, ViewContext } from "../../sources/contract";
-import { sourceCode, sourceLabel } from "../../sources";
-import { viewFor } from "../../sources/views";
-import { ICON, currentTabLink, el } from "../dom";
+import { sourceAbbreviation, sourceLabel } from "../../sources";
+import { FEATURES } from "../../sources/shared/filters";
+import { viewFor } from "../sourceViews";
 import { availabilityText, bedsRange, countRange, facts, formatDate, moneyRange, plural, shortFacts, sizeRange } from "../format";
 import type { Relations } from "../query";
 import { selected, toggleSelected } from "../selection";
 import { isCardOpen, isSectionOpen, setCardOpen, setSectionsOpen } from "../store";
 import { Links, Notes, Plans, Units } from "./CardSections";
 import { Photos } from "./Photos";
-import { CurrentTabLink, DomNode, LinkIcons } from "./links";
+import { CurrentTabLink, ICON, LinkIcons } from "./links";
 
 /**
  * One listing as a card: a one-line summary that expands into photos, the
- * status, and a stack of folded sections -- what the site said (Details,
- * Plans, Units, Amenities, Fees, Description, and whatever the site's own
- * view adds) and then what the user wrote (Notes, Links).
- *
- * Everything shown comes from `core`, so a card looks the same whatever
- * site the listing is from; the site's `view` appends its own rows and
- * sections. Whether the card and each section are open lives in the store,
- * so a repaint never closes anything.
+ * status and a stack of collapsible sections. Everything shown comes from
+ * `core`; the site's view appends its own rows and sections. Open state
+ * lives in the store, so a repaint never closes anything.
  */
 
 export interface CardProps {
@@ -32,33 +27,26 @@ export interface CardProps {
     isActive: boolean;
     settings: Settings;
     relations: Relations;
-    /** Brings another card into view, open. */
     onJump(id: string): void;
 }
 
-/** Short enough that the two read the same width, so the titles beside them line up. */
 const KIND_LABELS = { home: `${ICON.home} Home`, building: `${ICON.building} Bldg` } as const;
 
-/**
- * Every section a card can fold. Expand-all opens them all by key, ahead of
- * the card knowing which it has: a home has no plans and a bare capture has
- * no description, but a key for a fold that never appears is inert.
- */
+/** Every section a card can have; expand-all opens them all by key, and a key for a section that never appears is inert. */
+/** A feature's full name for the Details row: the hover text where the checkbox label is abbreviated. */
+const FEATURE_LABELS = new Map(FEATURES.map((field) => [field.key, field.title ?? field.label]));
+
 export const SECTION_NAMES = ["details", "plans", "units", "amenities", "fees", "description", "notes", "links"] as const;
 
 export function Card({ listing, isActive, settings, relations, onJump }: CardProps) {
     const { id, core } = listing;
     const open = isCardOpen(id);
     const isSelected = selected.value.has(id);
-
     const toggle = (): void => setCardOpen(id, !open);
 
     return (
         <article class={`card${open ? " open" : ""}${isActive ? " active" : ""}${isSelected ? " selected" : ""}`} data-id={id} data-source={listing.source}>
-            {/* Header: always visible, and the whole thing is the expand toggle. A div
-                rather than a <button> so the title can carry the listing link and the
-                checkbox: interactive content inside a <button> is not valid HTML. Enter
-                and Space are wired below to keep it a button to the keyboard. */}
+            {/* A div with button semantics: the title carries a link and a checkbox, which a <button> may not contain. */}
             <div
                 class="summary"
                 role="button"
@@ -73,7 +61,6 @@ export function Card({ listing, isActive, settings, relations, onJump }: CardPro
                     }
                 }}
             >
-                {/* The checkbox selects and never expands. */}
                 <input
                     type="checkbox"
                     class="check"
@@ -86,18 +73,15 @@ export function Card({ listing, isActive, settings, relations, onJump }: CardPro
                 />
                 <span class="badges">
                     <span class={`kind kind-${listing.kind}`}>{KIND_LABELS[listing.kind]}</span>
-                    {/* The site tag is the link to the listing's page. Inside the toggle, so its click must not also expand the card. */}
                     <CurrentTabLink class={`source-badge source-${listing.source}`} href={listing.url} title={`Open the listing on ${sourceLabel(listing.source)}`} onClick={(event) => event.stopPropagation()}>
-                        {sourceCode(listing.source)}
+                        {sourceAbbreviation(listing.source)}
                     </CurrentTabLink>
                 </span>
                 <div class="summary-text">
                     <h2>
                         <span class="title">{displayName(listing)}</span>
                     </h2>
-                    {/* Two renderings of the facts: the full line under the title of an open
-                        card, and a shorter one that shares the closed card's single row with
-                        the title. CSS shows whichever applies. */}
+                    {/* The full facts line under an open card's title, and a shorter one on the closed row; CSS shows whichever applies. */}
                     <div class="facts">{facts(core).filter(Boolean).join("  ·  ")}</div>
                     <div class="facts facts-short">{shortFacts(core).filter(Boolean).join(" · ")}</div>
                 </div>
@@ -115,13 +99,13 @@ function CardBody({ listing, settings, relations, onJump }: Omit<CardProps, "isA
     const hasPlans = core.plans.length > 0 && (core.plans.length > 1 || core.plans[0]!.units.length > 1 || listing.kind === "building");
     const sections = useMemo(() => view?.sections?.(listing) ?? [], [view, listing]);
 
-    const folds: string[] = ["details"];
-    if (hasPlans) folds.push("plans", "units");
-    if (core.amenities.length) folds.push("amenities");
-    if (core.fees.length || core.pets) folds.push("fees");
-    if (core.description) folds.push("description");
-    folds.push(...sections.map((section) => section.key), "notes", "links");
-    const foldAll = (open: boolean): void => setSectionsOpen(folds.map((name) => `${id}:${name}`), open);
+    const names: string[] = ["details"];
+    if (hasPlans) names.push("plans", "units");
+    if (core.amenities.length) names.push("amenities");
+    if (core.fees.length || core.pets) names.push("fees");
+    if (core.description) names.push("description");
+    names.push(...sections.map((section) => section.key), "notes", "links");
+    const openAll = (open: boolean): void => setSectionsOpen(names.map((name) => `${id}:${name}`), open);
 
     return (
         <div class="body">
@@ -138,7 +122,6 @@ function CardBody({ listing, settings, relations, onJump }: Omit<CardProps, "isA
                     ))}
                 </p>
             )}
-            {/* Status on its own row, with the card's open-all / close-all at its right. */}
             <div class="status-row">
                 <span>Status</span>
                 <select class="status-select" aria-label="Status" value={listing.user.status} onChange={(event) => void updateUserFields(id, { status: event.currentTarget.value as ListingStatus }).catch(() => undefined)}>
@@ -149,37 +132,37 @@ function CardBody({ listing, settings, relations, onJump }: Omit<CardProps, "isA
                     ))}
                 </select>
                 <span class="fold-all push">
-                    <button type="button" class="tool icon fold-all-open" title="Open all sections" aria-label="Open all sections" onClick={() => foldAll(true)}>
+                    <button type="button" class="tool icon fold-all-open" title="Open all sections" aria-label="Open all sections" onClick={() => openAll(true)}>
                         ⊞
                     </button>
-                    <button type="button" class="tool icon fold-all-close" title="Close all sections" aria-label="Close all sections" onClick={() => foldAll(false)}>
+                    <button type="button" class="tool icon fold-all-close" title="Close all sections" aria-label="Close all sections" onClick={() => openAll(false)}>
                         ⊟
                     </button>
                 </span>
             </div>
-            {/* Section order: what the site said first, then what is yours, at the foot. */}
-            <Fold id={id} name="details" label="Details">
+            {/* What the site said first, then what is the user's. */}
+            <Section id={id} name="details" label="Details">
                 <Details listing={listing} settings={settings} relations={relations} onJump={onJump} />
-            </Fold>
+            </Section>
             {hasPlans && (
                 <>
-                    <Fold id={id} name="plans" label="Plans" hint={String(core.plans.length)}>
+                    <Section id={id} name="plans" label="Plans" hint={String(core.plans.length)}>
                         <Plans plans={core.plans} />
-                    </Fold>
-                    <UnitsFold listing={listing} saved={units} onJump={onJump} />
+                    </Section>
+                    <UnitsSection listing={listing} saved={units} onJump={onJump} />
                 </>
             )}
             {core.amenities.length > 0 && (
-                <Fold id={id} name="amenities" label="Amenities" hint={String(core.amenities.length)}>
+                <Section id={id} name="amenities" label="Amenities" hint={String(core.amenities.length)}>
                     <ul class="amenities field-body">
                         {core.amenities.map((amenity, i) => (
                             <li key={i}>{amenity}</li>
                         ))}
                     </ul>
-                </Fold>
+                </Section>
             )}
             {(core.fees.length > 0 || core.pets) && (
-                <Fold id={id} name="fees" label="Fees & policies" hint={core.fees.length ? String(core.fees.length) : ""}>
+                <Section id={id} name="fees" label="Fees & policies" hint={core.fees.length ? String(core.fees.length) : ""}>
                     <div class="fees field-body">
                         {core.pets && <p class="pets">Pets: {core.pets}</p>}
                         {core.fees.length > 0 && (
@@ -192,46 +175,26 @@ function CardBody({ listing, settings, relations, onJump }: Omit<CardProps, "isA
                             </dl>
                         )}
                     </div>
-                </Fold>
+                </Section>
             )}
             {core.description && (
-                <Fold id={id} name="description" label="Description">
+                <Section id={id} name="description" label="Description">
                     <p class="description field-body">{core.description}</p>
-                </Fold>
+                </Section>
             )}
-            {/* What only this listing's site knows how to show. Built on first open. */}
             {sections.map((section) => (
-                <Fold key={section.key} id={id} name={section.key} label={section.label}>
-                    <ViewSection render={section.render} />
-                </Fold>
+                <Section key={section.key} id={id} name={section.key} label={section.label}>
+                    <div class="field-body">{section.render()}</div>
+                </Section>
             ))}
-            <NotesFold listing={listing} />
-            <LinksFold listing={listing} />
+            <NotesSection listing={listing} />
+            <LinksSection listing={listing} />
         </div>
     );
 }
 
-/** A site view's section, built once when first shown. */
-function ViewSection({ render }: { render(): HTMLElement }) {
-    const node = useMemo(render, [render]);
-    return (
-        <div class="field-body">
-            <DomNode node={node} />
-        </div>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Folds
-// ---------------------------------------------------------------------------
-
-/**
- * A section folded behind a +/- toggle, closed by default. `hint` is a short
- * marker shown beside the label while folded, so a card with notes can be
- * told from one without. The body sits in a surface of its own under the
- * title, so the +/- line reads as a label and what follows as its contents.
- */
-export function Fold({ id, name, label, hint = "", hidden = false, children }: { id: string; name: string; label: string; hint?: string; hidden?: boolean; children: ComponentChildren }) {
+/** A section folded behind a +/- toggle, closed by default. `hint` is a short marker shown while folded. */
+export function Section({ id, name, label, hint = "", hidden = false, children }: { id: string; name: string; label: string; hint?: string; hidden?: boolean; children: ComponentChildren }) {
     const key = `${id}:${name}`;
     const open = isSectionOpen(key);
     return (
@@ -248,39 +211,34 @@ export function Fold({ id, name, label, hint = "", hidden = false, children }: {
     );
 }
 
-function UnitsFold({ listing, saved, onJump }: { listing: Listing; saved: readonly Listing[]; onJump(id: string): void }) {
+function UnitsSection({ listing, saved, onJump }: { listing: Listing; saved: readonly Listing[]; onJump(id: string): void }) {
     const count = listing.core.plans.reduce((n, plan) => n + plan.units.length, 0) + saved.filter((home) => !listing.core.plans.some((plan) => plan.units.some((unit) => unit.id === home.sourceId))).length;
     if (count === 0) return null;
     const savedCount = saved.length;
     return (
-        <Fold id={listing.id} name="units" label="Units" hint={savedCount ? `${savedCount} saved of ${count}` : String(count)}>
+        <Section id={listing.id} name="units" label="Units" hint={savedCount ? `${savedCount} saved of ${count}` : String(count)}>
             <Units plans={listing.core.plans} saved={saved} onJump={onJump} />
-        </Fold>
+        </Section>
     );
 }
 
-function NotesFold({ listing }: { listing: Listing }) {
+function NotesSection({ listing }: { listing: Listing }) {
     const [draft, setDraft] = useState(listing.user.notes);
     return (
-        <Fold id={listing.id} name="notes" label="Notes" hint={draft.trim() ? "●" : ""}>
+        <Section id={listing.id} name="notes" label="Notes" hint={draft.trim() ? "●" : ""}>
             <Notes listingId={listing.id} value={draft} onChange={setDraft} />
-        </Fold>
+        </Section>
     );
 }
 
-function LinksFold({ listing }: { listing: Listing }) {
+function LinksSection({ listing }: { listing: Listing }) {
     const [links, setLinks] = useState(listing.user.links);
     return (
-        <Fold id={listing.id} name="links" label="Links" hint={links.length ? String(links.length) : ""}>
+        <Section id={listing.id} name="links" label="Links" hint={links.length ? String(links.length) : ""}>
             <Links listingId={listing.id} links={links} onChange={setLinks} />
-        </Fold>
+        </Section>
     );
 }
-
-// ---------------------------------------------------------------------------
-// Details: everything structured we hold, as label/value rows. A row whose
-// value is unknown is left out rather than shown as "--".
-// ---------------------------------------------------------------------------
 
 function Row({ label, children }: { label: string; children: ComponentChildren }) {
     return (
@@ -291,6 +249,7 @@ function Row({ label, children }: { label: string; children: ComponentChildren }
     );
 }
 
+/** Details: everything structured we hold, as label/value rows. A row whose value is unknown is left out. */
 function Details({ listing, settings, relations, onJump }: Omit<CardProps, "isActive">) {
     const { core } = listing;
     const units = core.plans.reduce((n, plan) => n + plan.units.length, 0);
@@ -298,7 +257,7 @@ function Details({ listing, settings, relations, onJump }: Omit<CardProps, "isAc
     const contact = [core.contact.company, core.contact.phone].filter(Boolean).join(" · ");
     const rent = moneyRange(core.rent);
 
-    const rows: [key: string, label: string, value: ComponentChildren][] = [
+    const rows: DetailRow[] = [
         [
             "address",
             "Address",
@@ -314,45 +273,31 @@ function Details({ listing, settings, relations, onJump }: Omit<CardProps, "isAc
         ["bathrooms", "Bathrooms", countRange(core.baths)],
         ["size", "Size", sizeRange(core.sqft)],
         ["type", "Type", core.propertyType],
+        ["features", "Features", core.features.length ? core.features.map((key) => FEATURE_LABELS.get(key) ?? key).join(", ") : null],
         ["availability", "Availability", availability || null],
         ["plans", "Plans", core.plans.length ? `${plural(core.plans.length, "plan")}${units ? `, ${plural(units, "unit")}` : ""}` : null],
         ["contact", "Contact", contact || null],
         ["source", "Source", `${sourceLabel(listing.source)} · ${listing.sourceId}`],
-        ["via", "Read from", listing.partial ? `${listing.via} — page layout only; reload the page and re-capture for the full record` : listing.via],
+        ["readMethod", "Source data", listing.partial ? `${listing.readMethod} — page layout only; reload the page and re-capture for the full record` : listing.readMethod],
         ["photos", "Photos", core.photoUrls.length ? `${core.photoUrls.length} captured` : null],
         ["saved", "Saved", formatDate(listing.createdAt)],
         ["updated", "Updated", formatDate(listing.updatedAt)],
         ["captured", "Captured", formatDate(listing.capturedAt)],
     ];
-    // Each core row has a switch in the Details settings; a switch that is
-    // off drops the row. The site's own rows have no switch and stay shown.
+    // Each core row has a switch in the Details settings; the site's own rows have none.
     const shown = rows.filter(([key]) => (settings as Record<string, unknown>)[`details.${key}`] !== false);
-
-    // The site's view builds DOM: it is handed element-making helpers.
-    const viewCtx: ViewContext = {
-        building: relations.buildingOf.get(listing.id) ?? null,
-        cardLink: (target) => {
-            const button = el("button", { className: "jump icon", text: ICON.card, title: `Show the card for ${displayName(target)}` });
-            button.type = "button";
-            button.dataset["preview"] = `Card: ${displayName(target)}`;
-            button.setAttribute("aria-label", button.title);
-            button.addEventListener("click", () => onJump(target.id));
-            return button;
-        },
-        webLink: (href, describe) => {
-            const a = currentTabLink(href, ICON.web);
-            a.classList.add("icon");
-            a.title = `Open ${describe} on the web`;
-            a.setAttribute("aria-label", a.title);
-            return a;
-        },
-    };
-    const viewRows: DetailRow[] = viewFor(listing.source)?.detailRows(listing, viewCtx) ?? [];
+    const ctx: ViewContext = { building: relations.buildingOf.get(listing.id) ?? null, onJump };
+    const viewRows = viewFor(listing.source)?.detailRows(listing, ctx) ?? [];
 
     return (
         <dl class="details field-body">
-            {shown.map(([key, label, value]) => (value === null || value === "" ? null : <Row key={key} label={label}>{value}</Row>))}
-            {viewRows.map(([key, label, value]) => (value === null || value === "" ? null : <Row key={key} label={label}>{typeof value === "string" ? value : <DomNode node={value} />}</Row>))}
+            {[...shown, ...viewRows].map(([key, label, value]) =>
+                value === null || value === "" ? null : (
+                    <Row key={key} label={label}>
+                        {value}
+                    </Row>
+                ),
+            )}
         </dl>
     );
 }
@@ -360,7 +305,6 @@ function Details({ listing, settings, relations, onJump }: Omit<CardProps, "isAc
 /** The carousel steps the keyboard can reach, one per rendered open card. */
 export const carousels = new Map<string, (delta: number) => void>();
 
-/** Lets a card register its carousel's stepping function while it is open. */
 export function useCarousel(id: string, step: ((delta: number) => void) | null): void {
     useEffect(() => {
         if (!step) return;

@@ -1,17 +1,9 @@
 /**
- * Writes work/browsers/chrome-for-testing -- a tiny launcher pointing at the
- * Chrome for Testing build Playwright already downloaded.
- *
- * Why this exists: Google Chrome (stable, dev and canary alike, verified on 152)
- * no longer honours the --load-extension command-line switch, so a launch
- * configuration pointing at /Applications/Google Chrome.app opens a browser with
- * no extension in it. Chrome for Testing still honours the switch.
- *
- * The generated file is a shell wrapper rather than a symlink so macOS resolves
- * the .app bundle's frameworks from their real location, and it is regenerated
- * rather than committed because the path carries Playwright's build number.
- *
- * Run with `npm run browser:link` (the VS Code launch tasks do this for you).
+ * Writes work/browsers/chrome-for-testing, a launcher for the Chrome for
+ * Testing build Playwright downloaded. Google Chrome (verified on 152) no
+ * longer honours --load-extension; Chrome for Testing does. A shell wrapper
+ * rather than a symlink so macOS resolves the .app bundle's frameworks; not
+ * committed because the path carries Playwright's build number.
  */
 import { chromium } from "playwright-core";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";

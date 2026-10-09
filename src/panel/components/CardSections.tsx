@@ -5,7 +5,7 @@ import { moneyRange, shortFacts, sizeRange, unitFacts } from "../format";
 import { normalizeLink } from "../links";
 import { LinkIcons } from "./links";
 
-/** The sections of an open card that are more than a list: plans, units, notes, links. */
+/** The sections of an open card that are more than a list. */
 
 export function Plans({ plans }: { plans: readonly Plan[] }) {
     return (
@@ -47,11 +47,7 @@ interface UnitRow {
     offered: boolean;
 }
 
-/**
- * The building's units in the site's order, each marked saved when a home
- * listing with its id exists on the same site. Saved homes the building does
- * not list (a unit since taken down) follow, under their own names.
- */
+/** The building's units in the site's order, each marked saved when a home listing with its id exists; saved homes the building no longer lists follow. */
 function unitRows(plans: readonly Plan[], saved: readonly Listing[]): UnitRow[] {
     const savedById = new Map(saved.map((home) => [home.sourceId, home]));
     const rows: UnitRow[] = [];
@@ -94,26 +90,21 @@ export function Units({ plans, saved, onJump }: { plans: readonly Plan[]; saved:
     );
 }
 
-/** The user's notes. Written on blur rather than per keystroke; good enough for a personal tool. */
+/** The user's notes, written on blur. */
 export function Notes({ listingId, value, onChange }: { listingId: string; value: string; onChange(value: string): void }) {
     return (
         <textarea
             class="notes field-body"
             aria-label="Notes"
-            rows={1} // one line to start; the resize handle is how it grows
+            rows={1}
             value={value}
             onInput={(event) => onChange(event.currentTarget.value)}
-            // The catch covers a blur that lands after this listing was deleted.
             onBlur={() => void updateUserFields(listingId, { notes: value }).catch(() => undefined)}
         />
     );
 }
 
-/**
- * The user's own URLs for this place. A list with an × on each, and one
- * field with a + to add the next; Enter adds too. A line that is not a web
- * address is refused and said so, never stored.
- */
+/** The user's own URLs for this place. A line that is not a web address is refused. */
 export function Links({ listingId, links, onChange }: { listingId: string; links: string[]; onChange(links: string[]): void }) {
     const [text, setText] = useState("");
     const [error, setError] = useState("");

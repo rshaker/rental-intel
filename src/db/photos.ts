@@ -3,13 +3,7 @@ import { db } from "./db";
 import type { Photo } from "./types";
 import { hashBlob } from "../lib/hash";
 
-/** Re-exported so the photo surface stays one import for callers that use both. */
-export { hashBlob };
-
-/**
- * Stores a photo blob if its content hash is new, and returns the hash either
- * way. Deduping here is what keeps re-captures from doubling storage.
- */
+/** Stores a photo blob if its content hash is new, and returns the hash either way. */
 export async function putPhoto(blob: Blob, sourceUrl: string): Promise<string> {
     const hash = await hashBlob(blob);
     const existing = await db.photos.get(hash);

@@ -1,14 +1,7 @@
 import { db } from "./db";
 import { defaultRows, settingsFrom, type SettingKey, type SettingValue, type Settings } from "./settingsSchema";
 
-/**
- * Reading and writing the `settings` table. The registry of what exists and
- * what it defaults to is settingsSchema.ts; this is only the Dexie half.
- *
- * Read at the point of use, not cached: a setting changed on the Options tab
- * takes effect on the next save, the next run, the next capture, with no
- * message passing. Each read is one small table scan.
- */
+/** Reading and writing the `settings` table; the registry is settingsSchema.ts. Read at the point of use, so a change takes effect on the next save or run. */
 
 export function getSettings(): Promise<Settings> {
     return db.settings.toArray().then(settingsFrom);

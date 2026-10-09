@@ -57,27 +57,25 @@ describe("apartmentsSearch", () => {
 describe("apartmentsSearch.filteredUrl", () => {
     const filtered = (url: string, filters: Record<string, number | boolean | string>) => apartmentsSearch.filteredUrl!(url, filters);
 
-    it("writes the two URLs the site's own filter panel wrote", () => {
-        expect(filtered("https://www.apartments.com/austin-tx-78701/", { beds: 1, baths: 1, rentMin: 500, rentMax: 2000 })).toBe(
-            "https://www.apartments.com/austin-tx-78701/min-1-bedrooms-1-bathrooms-500-to-2000/",
-        );
-        expect(filtered("https://www.apartments.com/austin-tx/", { typeApartments: true, typeCondos: true, dogs: true, cats: true, utilities: true, washerDryer: true, laundry: true })).toBe(
-            "https://www.apartments.com/apartments-condos/austin-tx/pet-friendly-dog-and-cat/washer-dryer-laundry-facilities-utilities-included/",
-        );
-    });
-
-    it("writes the combinations checked against the live site", () => {
-        expect(filtered("https://www.apartments.com/austin-tx/", { typeApartments: true, typeCondos: true, beds: 1, baths: 1, rentMin: 500, rentMax: 2000, dogs: true, cats: true, washerDryer: true, utilities: true })).toBe(
-            "https://www.apartments.com/apartments-condos/austin-tx/min-1-bedrooms-1-bathrooms-500-to-2000-pet-friendly-dog-and-cat/washer-dryer-utilities-included/",
-        );
+    it("writes the rooms-rent-pets segment and pets the way the site's own filter panel wrote them", () => {
+        expect(filtered("https://www.apartments.com/austin-tx-78701/", { beds: 1, baths: 1, rentMin: 500, rentMax: 2000 })).toBe("https://www.apartments.com/austin-tx-78701/min-1-bedrooms-1-bathrooms-500-to-2000/");
+        expect(filtered("https://www.apartments.com/austin-tx/", { smallDogs: true, cats: true })).toBe("https://www.apartments.com/austin-tx/pet-friendly-dog-and-cat/");
+        expect(filtered("https://www.apartments.com/austin-tx/", { largeDogs: true })).toBe("https://www.apartments.com/austin-tx/pet-friendly-dog/");
         expect(filtered("https://www.apartments.com/austin-tx/", { rentMin: 500, cats: true })).toBe("https://www.apartments.com/austin-tx/over-500-pet-friendly-cat/");
         expect(filtered("https://www.apartments.com/austin-tx/", { rentMax: 2000 })).toBe("https://www.apartments.com/austin-tx/under-2000/");
-        expect(filtered("https://www.apartments.com/austin-tx/", { furnished: true })).toBe("https://www.apartments.com/austin-tx/furnished/");
     });
 
-    it("rebuilds from the place: old filters and the page number go, the housing type stays", () => {
+    it("writes the type, property, special and amenity filters in the site's bit order, with keywords in the query", () => {
+        expect(
+            filtered("https://www.apartments.com/austin-tx/", { typeHouses: true, typeTownhomes: true, baths: 2, byOwner: true, incomeRestricted: true, dishwasher: true, pool: true, keywords: "fireplace,  bike storage" }),
+        ).toBe("https://www.apartments.com/houses-townhomes/austin-tx/2-bathrooms/for-rent-by-owner/low-income-dishwasher-pool/?kw=fireplace%2Cbike+storage");
+        expect(filtered("https://www.apartments.com/austin-tx/", { dishwasher: true })).toBe("https://www.apartments.com/austin-tx/dishwasher/");
+        expect(filtered("https://www.apartments.com/austin-tx/", { laundryHookups: true, controlledAccess: true })).toBe("https://www.apartments.com/austin-tx/washer_dryer-hookup-controlled-access/");
+    });
+
+    it("rebuilds from the place: old filters and the page number go, the housing type stays unless the form chooses one", () => {
         expect(filtered("https://www.apartments.com/austin-tx/2-bedrooms-under-1500/3/", { beds: 2 })).toBe("https://www.apartments.com/austin-tx/min-2-bedrooms/");
-        expect(filtered("https://www.apartments.com/houses/austin-tx/", { dogs: true })).toBe("https://www.apartments.com/houses/austin-tx/pet-friendly-dog/");
+        expect(filtered("https://www.apartments.com/houses/austin-tx/", { smallDogs: true })).toBe("https://www.apartments.com/houses/austin-tx/pet-friendly-dog/");
         expect(filtered("https://www.apartments.com/houses/austin-tx/", { typeApartments: true, typeCondos: true })).toBe("https://www.apartments.com/apartments-condos/austin-tx/");
         expect(filtered("https://www.apartments.com/austin-tx/", { rentMin: 2500, rentMax: 1000 })).toBe("https://www.apartments.com/austin-tx/1000-to-2500/");
         expect(filtered("https://www.apartments.com/austin-tx/", {})).toBe("https://www.apartments.com/austin-tx/");
@@ -90,11 +88,10 @@ describe("apartmentsSearch.filteredUrl", () => {
 
     it("reads every URL it writes as a search page, and none as a listing", () => {
         const urls = [
-            "https://www.apartments.com/apartments-condos/austin-tx/pet-friendly-dog-and-cat/washer-dryer-laundry-facilities-utilities-included/",
-            "https://www.apartments.com/apartments-condos/austin-tx/pet-friendly-dog-and-cat/washer-dryer-laundry-facilities-utilities-included/2/",
             "https://www.apartments.com/austin-tx-78701/min-1-bedrooms-1-bathrooms-500-to-2000/",
-            "https://www.apartments.com/austin-tx/furnished/",
-            "https://www.apartments.com/austin-tx/studios/",
+            "https://www.apartments.com/austin-tx/pet-friendly-dog-and-cat/2/",
+            "https://www.apartments.com/apartments-condos/austin-tx/pet-friendly-dog-and-cat/",
+            "https://www.apartments.com/austin-tx/dishwasher/",
         ];
         for (const url of urls) {
             expect(apartmentsUrls.parse(url), url).toBeNull();
@@ -102,15 +99,7 @@ describe("apartmentsSearch.filteredUrl", () => {
         }
     });
 
-    it("writes the type, property, special and keyword filters the way the site's panel did", () => {
-        expect(
-            filtered("https://www.apartments.com/austin-tx/", { typeHouses: true, typeTownhomes: true, baths: 2, byOwner: true, newBuild: true, duplex: true, smallBuilding: true, lowIncome: true, specials: true, dishwasher: true, pool: true, keywords: "fireplace,  bike storage" }),
-        ).toBe("https://www.apartments.com/houses-townhomes/austin-tx/2-bathrooms/for-rent-by-owner-recent-build-duplex-under-50-units/low-income-rent-specials-dishwasher-pool/?kw=fireplace%2Cbike+storage");
-        expect(filtered("https://www.apartments.com/austin-tx/", { dishwasher: true })).toBe("https://www.apartments.com/austin-tx/dishwasher/");
-        expect(filtered("https://www.apartments.com/austin-tx/", { den: true, clubhouse: true, washerDryerHookups: true })).toBe("https://www.apartments.com/austin-tx/washer_dryer-hookup-clubhouse-living-room/");
-    });
-
-    it("reads its own one-word filters after a place as searches, not listings", () => {
+    it("reads the site's one-word filters after a place as searches, not listings", () => {
         for (const word of ["dishwasher", "parking", "garage", "fireplace", "basement", "elevator", "duplex", "concierge", "playground"]) {
             const url = `https://www.apartments.com/austin-tx/${word}/`;
             expect(apartmentsUrls.parse(url), url).toBeNull();
@@ -121,10 +110,9 @@ describe("apartmentsSearch.filteredUrl", () => {
         expect(apartmentsSearch.isSearchUrl("https://www.apartments.com/austin-tx/washer_dryer-hookup/")).toBe(true);
     });
 
-    it("offers each filter once, every one with a group", () => {
+    it("offers each filter once, in vocabulary order, every one with a group", () => {
         const fields = apartmentsSearch.filters!;
         expect(new Set(fields.map((field) => field.key)).size).toBe(fields.length);
-        expect(fields.length).toBe(51);
-        expect([...new Set(fields.map((field) => field.group))]).toEqual(["Rent", "Rooms", "Pets", "Type", "Listing", "Unit", "Building", "Keywords"]);
+        expect([...new Set(fields.map((field) => field.group))]).toEqual(["Rent", "Rooms", "Type", "Pets", "Laundry", "Unit", "Building", "Listing", "Keywords"]);
     });
 });

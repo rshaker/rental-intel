@@ -6,20 +6,7 @@ import type { ZillowDetail } from "../types";
 import { zillowUrls, ZILLOW_ORIGIN } from "../urls";
 import { emptyDetail } from "./fields";
 
-/**
- * Reading a Zillow page from its layout, for when the payload is missing or
- * describes another listing. Thinner than the payload -- no coordinates, no
- * fees, no unit list -- but every field a person sees on the page. Verified
- * against a captured home page (October 2026).
- *
- * What the page has, and where:
- *   [data-testid="price"]                      "$1,150/mo"
- *   h1                                          "710 E Dean Keeton St, # 111, Austin, TX 78705"
- *   [data-testid="bed-bath-sqft-fact-container"]  two spans: a value and its label ("1", "beds")
- *   [data-testid="description"]                 the listing's own words
- *   a[href^="/b/"]                              a breadcrumb to the building's page
- *   photos.zillowstatic.com images              the gallery, each photo at several sizes
- */
+/** Reading a Zillow page from its layout, for when the payload is missing or describes another listing. Thinner than the payload, but every field a person sees. Verified against a captured home page (October 2026). */
 
 export const PHOTO_HOST = "photos.zillowstatic.com";
 
@@ -56,12 +43,7 @@ export function addressFromHeading(heading: string | null): Address {
     };
 }
 
-/**
- * One URL per gallery photo, at its largest size. Zillow serves each photo
- * at several widths under the same hash (`/fp/<hash>-cc_ft_576.jpg`,
- * `-cc_ft_1536.jpg`, …); pick the widest of each and skip what is not a
- * listing photo (agent portraits are `-h_e.jpg`, floor plans `-o_a.jpg`).
- */
+/** One URL per gallery photo at its widest size (`/fp/<hash>-cc_ft_<width>.jpg`); agent portraits (`-h_e`) and floor plans (`-o_a`) are skipped. */
 export function galleryPhotos(doc: Document): string[] {
     const best = new Map<string, { url: string; width: number }>();
     for (const img of doc.querySelectorAll<HTMLImageElement>("img")) {
@@ -129,7 +111,7 @@ export function homeFromDom(doc: Document): { core: CoreFields; detail: ZillowDe
     core.description = text(doc, '[data-testid="description"]');
     core.photoUrls = galleryPhotos(doc);
 
-    const detail = emptyDetail("dom");
+    const detail = emptyDetail();
     const building = buildingFromBreadcrumb(doc);
     detail.buildingKey = building.key;
     detail.buildingUrl = building.url;
@@ -143,5 +125,5 @@ export function buildingFromDom(doc: Document): { core: CoreFields; detail: Zill
     core.propertyType = "apartment";
     core.description = text(doc, '[data-testid="description"]');
     core.photoUrls = galleryPhotos(doc);
-    return { core, detail: emptyDetail("dom") };
+    return { core, detail: emptyDetail() };
 }

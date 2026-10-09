@@ -1,6 +1,6 @@
 import type { CoreFields, NumRange, Unit, UnitStatus } from "../db/types";
 
-/** Numbers and dates the way the panel writes them. Pure, shared by the cards and the viewer. */
+/** Numbers and dates the way the panel writes them. */
 
 export function money(value: number | null): string {
     return value === null ? "--" : `$${value.toLocaleString()}`;
@@ -112,4 +112,8 @@ export function facts(core: CoreFields): string[] {
 /** The closed row's version: rent and rooms only, tightly set. */
 export function shortFacts(core: CoreFields): string[] {
     return [moneyRange(core.rent) ?? "--", roomsRange(core)];
+}
+
+export function errorText(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
 }

@@ -1,25 +1,11 @@
 import { LISTING_STATUSES, STATUS_LABELS, type ListingStatus } from "./types";
 
 /**
- * Every setting the extension has, with its default, in one place.
- *
- * THIS IS THE FILE TO EDIT to change a default or add a setting. Each entry
- * below is a complete description -- type, default, bounds, label, help -- and
- * everything else is derived from it: the `settings` table is seeded from the
- * defaults, the Options tab and the options page render themselves from the
- * entries, and each use site reads its value through `getSettings()`. Adding
- * a setting is one entry here plus one read wherever it applies; no schema
- * bump, no migration. A value missing from the table falls back to its
- * default, and a stored value that no longer fits its entry is treated as
- * missing.
- *
- * Dexie-free on purpose: the unit tests run without IndexedDB, and db.ts seeds
- * the table from `defaultRows()` without a circular import.
+ * Every setting, with its type, default, bounds, label and help. The
+ * `settings` table is seeded from the defaults, the Options tab renders
+ * itself from the entries, and a stored value that is missing or no longer
+ * fits reads as its default, so adding a setting needs no migration.
  */
-
-// ---------------------------------------------------------------------------
-// The shape of one entry, and small constructors so each is typed by what it is.
-// ---------------------------------------------------------------------------
 
 interface BaseSpec<T> {
     label: string;
@@ -66,10 +52,6 @@ export function fitsSpec(spec: SettingSpec, value: unknown): boolean {
     }
 }
 
-// ---------------------------------------------------------------------------
-// The registry
-// ---------------------------------------------------------------------------
-
 export interface SectionSpec {
     label: string;
     help: string;
@@ -77,13 +59,9 @@ export interface SectionSpec {
 
 /** Headings on the settings page, in display order. A setting's key starts with its section. */
 export const SECTIONS: Record<string, SectionSpec> = {
-    appearance: {
-        label: "Appearance",
-        help: "How the side panel is drawn.",
-    },
     bulk: {
         label: "Loading lists",
-        help: "How Load URLs walks the tab beside the panel through a list.",
+        help: "How Load URLs walks the active tab through a list.",
     },
     search: {
         label: "Searching sites",
@@ -106,26 +84,8 @@ export const SECTIONS: Record<string, SectionSpec> = {
 /** A Details row switch: on by default, named for the row. */
 const detailRow = (label: string, help: string) => boolean({ label, help, default: true });
 
-/**
- * The sizes the panel can be drawn at, as percentages of its normal size.
- * Chrome's own zoom steps, from the smallest that stays readable. The panel
- * applies the chosen one with CSS zoom (panel/scale.ts); it is a select
- * rather than a free number so the keyboard steps land on sensible stops.
- */
-export const PANEL_SCALES = ["75", "90", "100", "110", "125", "150", "175", "200"] as const;
-export type PanelScale = (typeof PANEL_SCALES)[number];
-
 /** The registry. Keys are `<section>.<name>` and are what the table stores. */
 export const SETTINGS = {
-    "appearance.scale": select<PanelScale>({
-        label: "Size",
-        help:
-            "Makes everything in the panel larger or smaller: text, controls and photos alike. " +
-            "Ctrl (⌘ on a Mac) with + or − steps it from anywhere in the panel, and with 0 puts it back. " +
-            "A larger size needs a wider panel before the filter controls fit side by side.",
-        default: "100",
-        options: PANEL_SCALES.map((scale) => ({ value: scale, label: `${scale}%` })),
-    }),
     "bulk.detectTimeout": number({
         label: "Wait for a page to confirm",
         help: "How long a page gets to load and be recognised before the run stops to ask you to look at the tab: answer the site's check there, or skip the page. The Search tab waits the same way.",
@@ -136,7 +96,7 @@ export const SETTINGS = {
     }),
     "bulk.pace": number({
         label: "Pause between listings",
-        help: "Breathing room after one save before the next page is requested. Sites notice a tab that never pauses.",
+        help: "A pause after one save before the next page is requested. Sites notice a tab that never pauses.",
         default: 2,
         min: 0,
         max: 60,
@@ -160,7 +120,7 @@ export const SETTINGS = {
     }),
     "search.pace": number({
         label: "Pause between pages",
-        help: "Breathing room after one page of results before the next is requested. Sites notice a tab that never pauses.",
+        help: "A pause after one page of results before the next is requested. Sites notice a tab that never pauses.",
         default: 2,
         min: 0,
         max: 60,
@@ -186,8 +146,7 @@ export const SETTINGS = {
         options: LISTING_STATUSES.map((status) => ({ value: status, label: STATUS_LABELS[status] })),
     }),
 
-    // The Details section, row by row. The key after "details." is what the
-    // panel checks, so renaming one here means renaming it in detailRows().
+    // The Details rows; the key after "details." is what Card.tsx checks.
     "details.address": detailRow("Address", "The street address, with a link to a map."),
     "details.location": detailRow("Location", "Latitude and longitude, when the site gives them."),
     "details.rent": detailRow("Rent", "The monthly rent, or the range across a building's plans."),
@@ -195,11 +154,12 @@ export const SETTINGS = {
     "details.bathrooms": detailRow("Bathrooms", "The count, or the range across a building's plans."),
     "details.size": detailRow("Size", "Square footage, or the range across a building's plans."),
     "details.type": detailRow("Type", "Apartment, house, condo or townhome, as the site classifies it."),
+    "details.features": detailRow("Features", "What the listing says it has, in the words the Features filter uses: pets, laundry, parking and the rest."),
     "details.availability": detailRow("Availability", "How many units are available and from when."),
     "details.plans": detailRow("Plans", "How many floor plans a building lists. The plans themselves have their own section."),
     "details.contact": detailRow("Contact", "The phone number and management company the listing gives."),
     "details.source": detailRow("Source", "The site and its own id for the listing."),
-    "details.via": detailRow("Read from", "Whether the record came from the site's own data or only from the page's layout."),
+    "details.readMethod": detailRow("Source data", "Whether the record came from the site's own data or only from the page's layout."),
     "details.photos": detailRow("Photos", "How many photos the listing had when it was saved."),
     "details.saved": detailRow("Saved", "When the listing was first saved."),
     "details.updated": detailRow("Updated", "When anything about the listing last changed, including your own notes and status."),
@@ -216,7 +176,7 @@ export type Settings = { readonly [K in SettingKey]: SettingValue<K> };
 
 export const SETTING_KEYS = Object.keys(SETTINGS) as SettingKey[];
 
-/** One row of the `settings` table. `value` is whatever was stored; trust it only through `settingsFrom`. */
+/** One row of the `settings` table; trust `value` only through `settingsFrom`. */
 export interface SettingRow {
     key: string;
     value: unknown;
@@ -242,12 +202,7 @@ export function isValidValue<K extends SettingKey>(key: K, value: unknown): valu
     return fitsSpec(SETTINGS[key], value);
 }
 
-/**
- * Resolves stored rows against the registry: defaults first, then every row
- * whose key is known and whose value still fits. Unknown keys (a setting that
- * was removed) and unfit values (a bound that tightened) are ignored, so the
- * registry can change without a migration.
- */
+/** Stored rows resolved against the registry: defaults, then every row whose key is known and whose value fits. */
 export function settingsFrom(rows: readonly SettingRow[]): Settings {
     const out = defaultSettings() as Record<string, unknown>;
     for (const row of rows) {
@@ -256,7 +211,7 @@ export function settingsFrom(rows: readonly SettingRow[]): Settings {
     return out as Settings;
 }
 
-/** The keys of one section, in registry order -- what the settings page iterates. */
+/** The keys of one section, in registry order. */
 export function keysInSection(section: string): SettingKey[] {
     return SETTING_KEYS.filter((key) => key.startsWith(`${section}.`));
 }

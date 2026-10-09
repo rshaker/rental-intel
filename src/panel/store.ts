@@ -1,16 +1,13 @@
 import { effect, signal, type Signal } from "@preact/signals";
 import { DEFAULT_FILTERS } from "./query";
-import { parseCardState, parseFilters, parsePhotoMode, parseSort, parseTab } from "./schemas";
+import { parseCardState, parseFilters, parsePhotoMode, parseSort } from "./schemas";
 
 /**
- * What the panel remembers between openings, as signals kept in
- * `localStorage` under `intel.panel.*`: which tab is open, the filters and
- * the sort, the photo mode, whether the controls are folded, and per card
- * whether it is open, which of its sections are open and which photo it
- * shows. (scale.ts keeps one more, `intel.panel.scale`: a mirror of the
- * Size setting.) Each is read once through its schema (schemas.ts), which
- * trusts nothing it finds, and written on every change. The selection is
- * deliberately not persisted.
+ * What the panel remembers between openings, as signals kept in localStorage
+ * under `intel.panel.*`: the open tab, the filters and sort, the photo mode,
+ * whether the controls are folded, and per card whether it and its sections
+ * are open and which photo it shows. Each is read once through a parser that
+ * trusts nothing it finds, and written on every change.
  */
 
 export function readStored(key: string): string | null {
@@ -25,7 +22,7 @@ export function store(key: string, value: string): void {
     try {
         localStorage.setItem(key, value);
     } catch {
-        // Nothing to do -- the choice just will not survive a panel reload.
+        // The choice just will not survive a panel reload.
     }
 }
 
@@ -44,25 +41,33 @@ export function persisted<T>(key: string, parse: (raw: string | null) => T, seri
     return value;
 }
 
-// ---------------------------------------------------------------------------
 // View state
-// ---------------------------------------------------------------------------
+
+/** The panel's tabs: name, label, and the id of the element each controls. */
+export const TABS = [
+    ["listings", "Listings", "root"],
+    ["search", "Search", "search-pane"],
+    ["sources", "Sources", "sources"],
+    ["data", "Data", "data"],
+    ["options", "Options", "options"],
+] as const;
+
+export type PanelTab = (typeof TABS)[number][0];
 
 export const filters = persisted("intel.panel.filters", parseFilters);
 export const sort = persisted("intel.panel.sort", parseSort);
 export const photoMode = persisted("intel.panel.photos", parsePhotoMode, (mode) => mode);
 /** Whether the control panel under the title is shown. */
 export const controlsOpen = persisted("intel.panel.controls", (raw) => raw !== "closed", (open) => (open ? "open" : "closed"));
-export const tab = persisted("intel.panel.tab", parseTab, (name) => name);
+/** Whether the Features row's boxes are unfolded; folded, the row names what is chosen. */
+export const featuresOpen = persisted("intel.panel.features", (raw) => raw === "open", (open) => (open ? "open" : "closed"));
+export const tab = persisted<PanelTab>("intel.panel.tab", (raw) => (TABS.some(([name]) => name === raw) ? (raw as PanelTab) : "listings"), (name) => name);
 
 export function resetFilters(): void {
     filters.value = { ...DEFAULT_FILTERS };
 }
 
-// ---------------------------------------------------------------------------
 // Card state: which cards and sections are open, which photo each shows.
-// A card's open state outlives the card, so a re-render never resets it.
-// ---------------------------------------------------------------------------
 
 export const cards = persisted("intel.panel.cards", parseCardState);
 
@@ -103,7 +108,7 @@ export function setCardsOpen(ids: readonly string[], open: boolean, sections: re
     cards.value = { ...cards.value, expanded: [...expanded], fields: [...fields] };
 }
 
-/** The photo an open card shows; kept across a collapse, since reopening where you left it is the nicer behaviour. */
+/** The photo an open card shows; kept across a collapse. */
 export function photoIndexOf(id: string): number {
     return cards.value.photo[id] ?? 0;
 }

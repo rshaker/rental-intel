@@ -1,28 +1,17 @@
 import { signal, type ReadonlySignal } from "@preact/signals";
 import { sameRef, type ListingKind, type ListingRef } from "../db/types";
 import { sendToTab, type StatusResponse } from "../lib/messages";
+import { Cancelled, poll } from "../lib/poll";
 import type { SourceDescriptor } from "../sources/contract";
 import { isSourceId, sourceForUrl } from "../sources";
 
 /**
- * The tab beside the panel, and what it shows. The panel asks; the content
- * script answers. While the tab's URL names a listing of an enabled source
- * and the page has not confirmed it, the tab is asked on a schedule: often
- * for the first seconds, since on a single-page site the document catches up
- * with its URL a beat late, then sparsely for a while, since a page can
- * finish arriving well after that. A tab on any other URL is not asked.
- *
- * Chrome's tab events say when to start over and when merely to ask again.
- * A new URL (`tabs.onUpdated` reports a pushState for any host the
- * extension has access to) is a new page: what was known goes, and the
- * look starts afresh. A status change with no new URL is a reload or a
- * same-document history commit -- Next.js does a replaceState of the current
- * URL once it has hydrated -- and the last answer stays up while the page is
- * asked again, so a confirmed listing never flickers to "Try to capture".
- *
- * A page that is being left can still answer for itself after the tab has
- * been told to navigate; its answer names its own URL's listing, not the one
- * now wanted, and is ignored.
+ * The active tab, and what it shows. While its URL names a listing of an
+ * enabled source and the page has not confirmed it, the tab is asked on a
+ * schedule: often for the first seconds (a single-page site's document
+ * catches up with its URL a beat late), then sparsely. A new URL starts
+ * over; a reload or same-document commit keeps the last answer up while
+ * the page is asked again, so a confirmed listing never flickers.
  */
 
 export interface TabListing {
@@ -42,34 +31,37 @@ export interface ActiveTabState {
     challenge: string | null;
 }
 
-/** When the tab is asked, from the moment its URL names a listing. The first three seconds are the busy ones. */
+/** Delays before each ask, from the moment the URL names a listing. */
 const SCHEDULE_MS = [0, 500, 500, 500, 500, 500, 500, 1_000, 2_000, 4_000, 8_000, 15_000, 30_000, 30_000, 30_000];
-/** How many steps of the schedule count as "still checking"; after them the row says nothing was confirmed while the looks go on. */
+/** How many asks count as "still checking"; after them the row says nothing was confirmed while the asks go on. */
 const BUSY_STEPS = 7;
 
 export interface ActiveTabOptions {
     isEnabled(source: SourceDescriptor): boolean;
-    /** A listing URL that never confirmed, and what the probes said: for the activity log. */
+    /** A listing URL that never confirmed, and what the checks said: for the activity log. */
     onGaveUp(text: string): void;
 }
 
 export interface ActiveTab {
     readonly state: ReadonlySignal<ActiveTabState>;
-    /** Asks the tab again, keeping what is known until it answers: a source was enabled, or a script was put in the tab. */
+    /** Reads the tab again and asks it, keeping what is known until it answers: a source was enabled, or a script was put in the tab. */
     recheck(): void;
 }
 
+/** The source a URL belongs to when that source is off: the capture row offers to enable it. */
+export function offSourceForUrl(url: string | null, isEnabled: (source: SourceDescriptor) => boolean): SourceDescriptor | null {
+    if (!url) return null;
+    const source = sourceForUrl(url);
+    return source && !isEnabled(source) ? source : null;
+}
+
 /** The listing a URL names, when it is an enabled source's listing URL. */
-export function subjectOf(url: string | null, isEnabled: (source: SourceDescriptor) => boolean): ListingRef | null {
+export function listingIdInUrl(url: string | null, isEnabled: (source: SourceDescriptor) => boolean): ListingRef | null {
     if (!url) return null;
     const source = sourceForUrl(url);
     if (!source || !isEnabled(source)) return null;
     const ref = source.urls.parse(url);
     return ref && isSourceId(source.id) ? { source: source.id, sourceId: ref.sourceId } : null;
-}
-
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function watchActiveTab({ isEnabled, onGaveUp }: ActiveTabOptions): ActiveTab {
@@ -82,12 +74,12 @@ export function watchActiveTab({ isEnabled, onGaveUp }: ActiveTabOptions): Activ
     };
 
     /** Asks the tab on the schedule until it confirms the listing its URL names. `keep` leaves the last answer up meanwhile. */
-    function poll(keep: boolean): void {
+    function ask(keep: boolean): void {
         controller?.abort();
         const run = new AbortController();
         controller = run;
         const { tabId, url } = state.value;
-        const wanted = subjectOf(url, isEnabled);
+        const wanted = listingIdInUrl(url, isEnabled);
         if (tabId === null || !wanted) {
             patch({ listing: null, checking: false, challenge: null });
             return;
@@ -96,25 +88,29 @@ export function watchActiveTab({ isEnabled, onGaveUp }: ActiveTabOptions): Activ
 
         void (async () => {
             let detail: string | null = null;
-            for (const [step, delay] of SCHEDULE_MS.entries()) {
-                if (delay) await sleep(delay);
-                if (run.signal.aborted) return;
-                if (step === BUSY_STEPS && state.value.checking) patch({ checking: false });
-                const response = await sendToTab<StatusResponse>(tabId, { type: "status" });
-                if (run.signal.aborted) return;
-                // No script yet, or the page being left still answering for itself: ask again.
-                if (!response || response.subject !== wanted.sourceId || response.source !== wanted.source) continue;
-                if (response.listing && sameRef(response.listing.ref, wanted)) {
-                    patch({ listing: response.listing, checking: false, challenge: null });
+            try {
+                const found = await poll(
+                    () => sendToTab<StatusResponse>(tabId, { type: "status" }),
+                    (response, step) => {
+                        if (step === BUSY_STEPS && state.value.checking) patch({ checking: false });
+                        // No script yet, or the page being left still answering for itself: ask again.
+                        if (!response || response.urlListingId !== wanted.sourceId || response.source !== wanted.source) return null;
+                        if (response.listing && sameRef(response.listing.ref, wanted)) return response.listing;
+                        detail = response.detail;
+                        if (response.challenge !== state.value.challenge) patch({ challenge: response.challenge });
+                        return null;
+                    },
+                    { every: (attempt) => SCHEDULE_MS[attempt] ?? null, signal: run.signal },
+                );
+                if (found) {
+                    patch({ listing: found, checking: false, challenge: null });
                     return;
                 }
-                detail = response.detail;
-                if (response.challenge !== state.value.challenge) patch({ challenge: response.challenge });
+            } catch (error) {
+                if (error instanceof Cancelled) return;
+                throw error;
             }
             patch({ listing: null, checking: false });
-            // A listing URL that never confirmed is worth a line in the log: a
-            // redesign, or a page that is not a listing after all, and the
-            // surviving signals say which.
             onGaveUp(`${wanted.source} ${wanted.sourceId} never confirmed: ${detail ?? "no content script answered"}`);
         })();
     }
@@ -122,7 +118,7 @@ export function watchActiveTab({ isEnabled, onGaveUp }: ActiveTabOptions): Activ
     /** A new tab, or a new page in it: forget what was known and look afresh. */
     function setActive(tabId: number | null, url: string | null): void {
         state.value = { tabId, url, listing: null, checking: false, challenge: null };
-        poll(false);
+        ask(false);
     }
 
     void (async () => {
@@ -143,12 +139,22 @@ export function watchActiveTab({ isEnabled, onGaveUp }: ActiveTabOptions): Activ
     chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
         if (tabId !== state.value.tabId) return;
         if (changeInfo.url && changeInfo.url !== state.value.url) setActive(tabId, changeInfo.url);
-        else if (changeInfo.url || changeInfo.status) poll(true);
+        else if (changeInfo.url || changeInfo.status) ask(true);
     });
 
     chrome.tabs.onRemoved.addListener((tabId) => {
         if (tabId === state.value.tabId) controller?.abort();
     });
 
-    return { state, recheck: () => poll(true) };
+    /** The tab's URL may have changed, or become visible, since it was last read: a fresh one starts over, the same one is asked again. */
+    function recheck(): void {
+        const { tabId, url } = state.value;
+        if (tabId === null) return;
+        chrome.tabs.get(tabId).then(
+            (tab) => ((tab.url ?? null) !== url ? setActive(tabId, tab.url ?? null) : ask(true)),
+            () => ask(true),
+        );
+    }
+
+    return { state, recheck };
 }

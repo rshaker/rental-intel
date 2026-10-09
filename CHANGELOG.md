@@ -1,0 +1,48 @@
+# Changelog
+
+All notable changes to this project are recorded here. The format is
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Database schema
+versions are Dexie's, independent of the release version.
+
+## [Unreleased]
+
+### Added
+
+- A shared list of listing features, used two ways:
+  - The Search tab offers the features a site's search accepts, and the
+    site's plugin translates them into its search URL. Searches can now
+    filter by housing type, laundry, amenities, and keywords.
+  - Every saved listing has a field, `core.features`, that the plugin fills
+    at capture. The Listings tab filters by it; the Details view shows it.
+- An **Enable source** button on the Listings tab, shown when the active
+  tab is on a site that is turned off.
+- Restoring a backup accepts the first backup format too.
+
+### Changed
+
+- Schema version 4 adds `core.features` to every saved listing. It stays
+  empty until the listing is captured again.
+- Schema version 3 removes the `captures` and `snapshots` tables and the
+  stored relation fields, which the panel now computes. `via` is renamed
+  `readMethod`. Backups are now format version 2.
+- The manifest asks for the `tabs` permission, so the panel can read the
+  active tab's address before the user grants the site. Chrome disables the
+  extension after a store update until the user accepts it.
+- The panel's zoom level is kept only in `localStorage`.
+- The console object `__intel` is now `{ db, upsert, getSettings, setSetting }`.
+
+### Removed
+
+- The options page. The Options tab in the panel remains.
+- Pause and retry in Load URLs.
+- The dependencies `zod` and `p-limit`.
+
+## [0.1.0] - 2026-10-08
+
+### Added
+
+- First release: Chrome side panel; Zillow and apartments.com sources;
+  capture from the active tab; Load URLs; site search; photos; backups.
+- Schema v1 (`listings`, `captures`, `snapshots`, `photos`,
+  `listingPhotos`, `settings`); v2 added the stored relation fields.

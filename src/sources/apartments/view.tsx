@@ -13,13 +13,7 @@ export const apartmentsView: SourceView = {
     detailRows(listing): DetailRow[] {
         const detail = detailOf(listing);
         if (!detail) return [];
-        const scores = [
-            detail.walkScore === null ? "" : `walk ${detail.walkScore}`,
-            detail.transitScore === null ? "" : `transit ${detail.transitScore}`,
-            detail.bikeScore === null ? "" : `bike ${detail.bikeScore}`,
-        ]
-            .filter(Boolean)
-            .join(" · ");
+        const scores = [detail.walkScore === null ? "" : `walk ${detail.walkScore}`, detail.transitScore === null ? "" : `transit ${detail.transitScore}`, detail.bikeScore === null ? "" : `bike ${detail.bikeScore}`].filter(Boolean).join(" · ");
         return [
             ["apartments.listingId", "Listing id", detail.listingId],
             ["apartments.rating", "Rating", detail.rating === null ? null : `${detail.rating} / 5${detail.reviewCount ? ` (${detail.reviewCount} reviews)` : ""}`],

@@ -4,19 +4,10 @@ import { useRef } from "preact/hooks";
 import { resetSettings, setSetting } from "../../db/settings";
 import { SECTIONS, SETTINGS, isValidValue, keysInSection, type SettingKey, type SettingSpec, type Settings } from "../../db/settingsSchema";
 import { liveSettings } from "../live";
+import { DEFAULT_SCALE, PANEL_SCALES, parseScale, scale } from "../scale";
 
-/**
- * The settings form, rendered from the registry in db/settingsSchema.ts.
- * Used by the side panel's Options tab and by the options page alike;
- * neither knows what the settings are, only where to put them. The values
- * are a live signal over the table, so a change made on either page shows
- * on the other.
- *
- * Each control writes on change and shows the default beside its help text.
- * A number outside its bounds is put back to the stored value rather than
- * saved, and the row says so.
- */
-export function SettingsPane({ onChange }: { onChange?: () => void }) {
+/** The Options tab: the panel's size, then the settings registry rendered section by section. Each control writes on change. */
+export function SettingsPane() {
     const settings = liveSettings.value;
     const status = useSignal("");
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -31,18 +22,41 @@ export function SettingsPane({ onChange }: { onChange?: () => void }) {
         if (!isValidValue(key, value)) return false;
         await setSetting(key, value);
         say(`Saved ${SETTINGS[key].label.toLowerCase()}.`);
-        onChange?.();
         return true;
     };
 
     const reset = async (): Promise<void> => {
         await resetSettings();
+        scale.value = DEFAULT_SCALE;
         say("Every setting is back to its default.");
-        onChange?.();
     };
 
     return (
         <>
+            <section class="settings-section">
+                <h2>Appearance</h2>
+                <p class="hint">How the side panel is drawn.</p>
+                <div class="setting">
+                    <label>
+                        <span class="setting-label">Size</span>
+                        <select
+                            data-setting="appearance.scale"
+                            value={scale.value}
+                            onChange={(event) => {
+                                const next = parseScale(event.currentTarget.value);
+                                if (!next) return;
+                                scale.value = next;
+                                say("Saved size.");
+                            }}
+                        >
+                            {PANEL_SCALES.map((stop) => (
+                                <option key={stop} value={stop}>{`${stop}%`}</option>
+                            ))}
+                        </select>
+                    </label>
+                    <p class="setting-help">Makes everything in the panel larger or smaller. Ctrl (⌘ on a Mac) with + or − steps it from anywhere in the panel, and with 0 puts it back. Default: 100%.</p>
+                </div>
+            </section>
             {Object.keys(SECTIONS).map((section) => {
                 const keys = keysInSection(section);
                 if (keys.length === 0) return null;
@@ -96,8 +110,7 @@ function Setting({ settingKey: key, settings, say, write }: SettingProps) {
                         const input = event.currentTarget;
                         void write(key, input.valueAsNumber).then((ok) => {
                             if (ok) return;
-                            // The value prop did not change, so put the text back by hand.
-                            input.value = String(stored);
+                            input.value = String(stored); // the value prop did not change, so put the text back by hand
                             say(`${spec.label} must be between ${spec.min} and ${spec.max}.`);
                         });
                     }}

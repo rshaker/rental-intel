@@ -6,11 +6,7 @@ import { plural } from "../format";
 import { enabledSources, grantNotes, toggleSource } from "../grants";
 import { liveListings } from "../live";
 
-/**
- * The Sources tab: one row per site the extension knows, with a switch.
- * The grants and the counts are signals, so the rows follow a change made
- * anywhere: this tab, chrome://extensions, a save in another window.
- */
+/** The Sources tab: one row per site, with an Enable or Disable button. */
 export function SourcesPane() {
     const enabled = enabledSources.value;
     const notes = grantNotes.value;

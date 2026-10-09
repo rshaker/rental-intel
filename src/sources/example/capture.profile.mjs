@@ -10,7 +10,7 @@ export default {
     payloadSelectors: ["script#listing-data"],
     /** A payload block is kept in the fixture only when its text matches; the rest (analytics, config) goes to state.json only. */
     payloadKeep: /"plans"/,
-    /** Elements whose subtree survives in the body skeleton. Everything the probes and the extractor read must be listed. */
+    /** Elements whose subtree survives in the body skeleton. Everything the checks and the extractor read must be listed. */
     interesting: "[data-listing], [data-field], [data-plan], [data-unit], [data-rating], [data-search], [data-result], h1, h2, img[data-photo]",
     /** Attributes kept on surviving elements. `data-*` keeps every data attribute. */
     keepAttrs: ["id", "href", "src", "alt", "rel", "property", "content", "type", "data-*"],

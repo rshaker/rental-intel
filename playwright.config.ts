@@ -1,13 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-/**
- * End-to-end tests drive a real Chrome with the unpacked extension loaded, so
- * they need a build first: `npm run playwright:test` does an E2E build
- * (`E2E=1`, see manifest.config.ts) and then runs this.
- *
- * Extensions only work in a persistent context, which the fixture in
- * playwright/harness/extension.ts sets up.
- */
+/** The browser suite drives a real Chrome with the test build (dist-e2e/) loaded; `npm run playwright:test` builds it first. */
 export default defineConfig({
     testDir: "playwright/specs",
     fullyParallel: false,

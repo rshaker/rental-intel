@@ -1,8 +1,4 @@
-/**
- * Coercions for reading site payloads, which arrive as `unknown` and lie
- * about their types: numbers as strings, ids as numbers, "$2,450" as a price.
- * Shared by every source's extractor.
- */
+/** Coercions for reading site payloads, which arrive as `unknown` with numbers as strings and ids as numbers. */
 
 export function num(value: unknown): number | null {
     if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -63,11 +59,7 @@ export function clean(text: string | null | undefined): string | null {
     return collapsed ? collapsed : null;
 }
 
-/**
- * "Available now", "Now", "Available Oct 1", "10/01/2026" and an ISO date as
- * either "now" or an ISO date (YYYY-MM-DD). Anything else is kept as written,
- * so the panel can still show it; the caller decides whether that is fine.
- */
+/** "Available now", "Available Oct 1", "10/01/2026" or an ISO date as "now" or YYYY-MM-DD; anything else as written. */
 export function availability(value: unknown): string | null {
     const text = clean(str(value));
     if (!text) return null;
@@ -78,8 +70,7 @@ export function availability(value: unknown): string | null {
     if (us) return `${us[3]}-${us[1]!.padStart(2, "0")}-${us[2]!.padStart(2, "0")}`;
     const parsed = new Date(text.replace(/^available\s+/i, ""));
     if (!Number.isNaN(parsed.getTime())) {
-        // Local date parts: Date.parse reads "Oct 1, 2026" as local midnight,
-        // and toISOString would shift it a day east of Greenwich.
+        // Local date parts: toISOString would shift a local midnight east of Greenwich.
         const pad = (n: number) => String(n).padStart(2, "0");
         return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
     }

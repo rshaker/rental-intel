@@ -5,7 +5,6 @@ import { emptyCore } from "./types";
 const minimal = (): Backup => ({
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
-    schema: 1,
     exportedAt: 1,
     listings: [
         {
@@ -16,20 +15,14 @@ const minimal = (): Backup => ({
             kind: "building",
             core: emptyCore(),
             detail: { version: 1, data: null },
-            via: "test",
+            readMethod: "test",
             partial: false,
-            propertyId: "abc",
-            buildingId: null,
-            answersTo: [],
-            buildingRefs: [],
             user: { status: "none", notes: "", links: [] },
             createdAt: 1,
             updatedAt: 1,
             capturedAt: 1,
         },
     ],
-    captures: [{ listingId: "abc", capturedAt: 1, url: "https://listings.example/l/juniper01/", payload: { a: 1 } }],
-    snapshots: [{ listingId: "abc", timestamp: 1, rentMin: 1, rentMax: 2, availableUnits: 1, status: "none" }],
     listingPhotos: [{ listingId: "abc", photoHash: "h", order: 0 }],
     photos: [{ hash: "h", mimeType: "image/png", sourceUrl: "x", bytes: 3, createdAt: 1, data: "AQID" }],
 });
@@ -40,12 +33,28 @@ describe("parseBackup", () => {
         expect(parseBackup(serializeBackup(backup))).toEqual(backup);
     });
 
-    it("tolerates a backup without the optional lists", () => {
-        const { captures: _c, snapshots: _s, listingPhotos: _l, ...rest } = minimal();
-        const parsed = parseBackup(JSON.stringify(rest));
-        expect(parsed.captures).toEqual([]);
-        expect(parsed.snapshots).toEqual([]);
-        expect(parsed.listingPhotos).toEqual([]);
+    it("tolerates a backup without the photo links", () => {
+        const { listingPhotos: _l, ...rest } = minimal();
+        expect(parseBackup(JSON.stringify(rest)).listingPhotos).toEqual([]);
+    });
+
+    it("upgrades a v1 file: the extra tables are dropped and each listing takes the current shape, `features` included", () => {
+        const backup = minimal();
+        const [listing] = backup.listings as unknown as Record<string, unknown>[];
+        const { readMethod, ...old } = listing!;
+        const { features: _features, ...oldCore } = old["core"] as Record<string, unknown>;
+        const v1 = {
+            ...backup,
+            version: 1,
+            schema: 2,
+            listings: [{ ...old, core: oldCore, via: readMethod, propertyId: "p", buildingId: null, answersTo: [], buildingRefs: [], detail: { version: 1, data: { via: "dom", lotId: "5" } } }],
+            captures: [{ listingId: "abc", capturedAt: 1, url: "x", payload: {} }],
+            snapshots: [{ listingId: "abc", timestamp: 1 }],
+        };
+        const parsed = parseBackup(JSON.stringify(v1));
+        expect(parsed.version).toBe(2);
+        expect(parsed.listings).toEqual([{ ...backup.listings[0], detail: { version: 1, data: { lotId: "5" } } }]);
+        expect("captures" in parsed).toBe(false);
     });
 
     it("refuses what is not a backup, with a readable reason", () => {
@@ -53,6 +62,7 @@ describe("parseBackup", () => {
         expect(() => parseBackup("[]")).toThrow("Not a backup file.");
         expect(() => parseBackup('{"format":"rentals-backup","version":1}')).toThrow("Not a Rental Intel backup.");
         expect(() => parseBackup(JSON.stringify({ ...minimal(), version: 99 }))).toThrow("Unsupported backup version: 99.");
+        expect(() => parseBackup(JSON.stringify({ ...minimal(), listings: undefined }))).toThrow('Backup has no "listings" list.');
         expect(() => parseBackup(JSON.stringify({ ...minimal(), listings: [{ id: "x" }] }))).toThrow(/listing without/);
         expect(() => parseBackup(JSON.stringify({ ...minimal(), photos: [{ hash: "h" }] }))).toThrow(/photo without/);
     });

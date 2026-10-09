@@ -4,14 +4,9 @@ import { db } from "../db/db";
 import { listListings } from "../db/listings";
 import { defaultSettings, settingsFrom, type Settings } from "../db/settingsSchema";
 import type { Listing } from "../db/types";
-import { log, LogLevels } from "../lib/logging";
+import { error } from "../lib/log";
 
-/**
- * The database as signals. Dexie's liveQuery re-runs a query whenever a
- * table it read changes, in this context or another of the same origin
- * (the worker's saves reach the panel), so a component that reads one of
- * these repaints by itself.
- */
+/** The database as signals: Dexie's liveQuery re-runs a query whenever a table it read changes, in any context of the extension origin. */
 
 export function live<T>(query: () => Promise<T> | T, initial: T): ReadonlySignal<T> {
     const value = signal(initial);
@@ -19,7 +14,7 @@ export function live<T>(query: () => Promise<T> | T, initial: T): ReadonlySignal
         next: (next) => {
             value.value = next;
         },
-        error: (error: unknown) => log(LogLevels.ERROR, "live query failed", error),
+        error: (reason: unknown) => error("live query failed", reason),
     });
     return value;
 }

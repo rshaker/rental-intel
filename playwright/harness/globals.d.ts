@@ -1,16 +1,10 @@
-import type { DataDebugHandle } from "../../src/lib/debug.data";
+import type { ConsoleHandle } from "../../src/lib/consoleHandle";
 
-/**
- * The console handle, as the specs' `worker.evaluate` and `page.evaluate`
- * callbacks see it. Those callbacks are authored here but run inside the
- * extension, where src/lib/debug.data.ts installed the handle; this
- * declaration only gives the callbacks its type. The specs are a separate
- * TypeScript program from src/, so src/@types/globals.d.ts is not in scope.
- */
+/** The console handle as the specs' `worker.evaluate` callbacks see it: authored here, run inside the extension where src/lib/consoleHandle.ts installed it. */
 declare global {
     // eslint-disable-next-line no-var
-    var __intel: DataDebugHandle | undefined;
-    /** Defined by Vite for src/; declared here only because the handle's type reaches src/sources/index.ts. */
+    var __intel: ConsoleHandle | undefined;
+    /** Defined by Vite for src/; declared here because the handle's type reaches src/sources/index.ts. */
     const __E2E__: boolean;
 }
 

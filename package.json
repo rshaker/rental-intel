@@ -1,7 +1,7 @@
 {
     "name": "@rshaker/rental-intel",
-    "version": "0.1.0",
-    "description": "Chrome extension that captures rental listings from several sites into local, searchable records",
+    "version": "0.2.0",
+    "description": "Saves property listings from real estate websites to an in-browser database, for searching, comparison and annotation.",
     "private": true,
     "type": "module",
     "license": "MIT",
@@ -58,9 +58,7 @@
     "dependencies": {
         "@preact/signals": "^2.11.3",
         "dexie": "^4.4.6",
-        "p-limit": "^7.3.3",
-        "preact": "^11.0.0",
-        "zod": "^4.6.5"
+        "preact": "^11.0.0"
     },
     "devDependencies": {
         "@crxjs/vite-plugin": "^2.7.1",

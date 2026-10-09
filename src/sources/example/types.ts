@@ -1,12 +1,7 @@
-/**
- * What the example site says about a listing beyond the shared `core`: the
- * part of a site's model that has no cross-site meaning and so lives in
- * `listing.detail.data`. Bump `EXAMPLE_DETAIL_VERSION` when this changes.
- */
+/** What the example site says beyond the shared `core`, kept in `listing.detail.data`. Bump the version when the shape changes. */
 export const EXAMPLE_DETAIL_VERSION = 1;
 
 export interface ExampleDetail {
-    /** The site's own listing id, as `sourceId` but kept here too so the detail is self-describing. */
     listingId: string;
     /** The site's rating, 0-5, when shown. */
     rating: number | null;

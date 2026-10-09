@@ -1,12 +1,6 @@
 import { EXAMPLE, expect, openPanel, serveExampleSite, test, waitForContentScript, workerOf } from "../harness/extension";
 
-/**
- * The extension loads, the worker registers the example source's content
- * script, and the whole capture chain runs on a fixture page: content script
- * confirms, the panel offers Add listing, a click saves, a card appears.
- * The registration is the risky part -- it is a dynamic content script built
- * by CRXJS and registered with chrome.scripting -- so it is pinned first.
- */
+/** The extension loads, the worker registers the content scripts, and the capture chain runs on a fixture page. */
 
 test.beforeEach(async ({ context }) => {
     if (context.serviceWorkers().length === 0) await context.waitForEvent("serviceworker");
@@ -19,8 +13,7 @@ test("loads with the expected manifest and registers the example content script"
     expect(manifest.name).toBe("Rental Intel (test build)");
     expect(manifest.permissions).toContain("scripting");
 
-    // Every source of the build, each on its own hosts and nothing else;
-    // Zillow's page-world helper is registered beside its content script.
+    // Every source of the build, each on its own hosts; Zillow's main-world script beside its content script.
     await expect
         .poll(() => worker.evaluate(async () => (await chrome.scripting.getRegisteredContentScripts()).map((s) => [s.id, s.matches]).sort()), { timeout: 10_000 })
         .toEqual([
@@ -52,20 +45,19 @@ test("captures a building from the example site through the panel", async ({ con
     await expect(button).toHaveText("Re-capture");
     await expect(panel.locator("#capture-note")).toHaveText(/^Saved\./);
 
-    // The save stored the record with its plans; the photos follow, and the
-    // capture row reports them until the last one lands.
+    // The photos follow the record; the capture row reports them until the last lands.
     const worker = await workerOf(context);
     const stored = () =>
         worker.evaluate(async () => {
-            const [listing] = await __intel!.list!();
-            const photos = await __intel!.photos!.of(listing!.id);
-            return { kind: listing!.kind, plans: listing!.core.plans.length, units: listing!.core.plans.flatMap((p) => p.units).length, photos: photos.length, source: listing!.source };
+            const [listing] = await __intel!.db.listings.toArray();
+            const photos = await __intel!.db.listingPhotos.where("listingId").equals(listing!.id).count();
+            return { kind: listing!.kind, plans: listing!.core.plans.length, units: listing!.core.plans.flatMap((p) => p.units).length, photos, source: listing!.source };
         });
     await expect.poll(stored).toEqual({ kind: "building", plans: 2, units: 3, photos: 3, source: "example" });
     await expect(panel.locator("#capture-note")).toHaveText("Saved.");
 });
 
-test("refuses a search page, and a forced parse finds nothing", async ({ context, extensionId }) => {
+test("refuses a search page, and a manual capture finds nothing", async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.goto(EXAMPLE.search.url);
     await waitForContentScript(context, page);

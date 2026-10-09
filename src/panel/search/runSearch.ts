@@ -2,56 +2,19 @@ import { getSettings } from "../../db/settings";
 import type { SearchResponse } from "../../lib/messages";
 import type { SearchFilters, SearchResult, SourceDescriptor } from "../../sources/contract";
 import { anySet } from "../../sources/shared/filters";
-import { Cancelled, TabClosed, delay, navigateTab, pollTab, tabBesideThePanel } from "../tabDriver";
+import { Cancelled, sleep } from "../../lib/poll";
+import { TabClosed, activeTabId, navigateTab, pollTab } from "../tabDriver";
 import { resolveSearchUrl } from "./searchUrl";
 
 /**
- * One search of one site, start to finish, in the tab beside the panel: the
- * site's search page is opened there, the site renders it the way it would
- * for a person, and that site's content script reads the result list off
- * the rendered document. The extension never fetches the page itself, for
- * the reason bulk/bulkLoad.ts gives: nothing but a browser showing a page
- * gets past the sites' bot detection. And it is the user's own tab rather
- * than a hidden one because a hidden tab gets no animation frames and slow
- * timers, and apartments.com draws its suggestions in neither; a visible
- * tab also keeps the panel, which is per tab, in view. The run ends with
- * the results page in the tab, which is where a result's link goes next,
- * and Back returns.
- *
- * The tab is asked every POLL_MS until it answers with a list. Three things
- * look the same from here and all mean "ask again": no content script yet
- * (a redirect in flight -- Zillow sends a free-text search through one --
- * or a document before document_idle), a script whose page is not a search
- * page, and a search page whose list has not rendered. A site that
- * resolves text itself (apartments.com) is opened on its home page and its
- * script drives the site's own search box; the page that follows answers a
- * later poll. A page that will never answer (the site's "not found" page)
- * says so, and the run ends there.
- *
- * A page that has answered nothing by the deadline does not end the run:
- * a person is looking at the tab. The status says so -- naming the site's
- * check when the page is one -- and the asking goes on until the page
- * answers, which it does by itself once the person has dealt with whatever
- * the tab shows, or until Cancel.
- *
- * Filters come second. The text is searched bare first, because only the
- * site knows what page a place has; the page it settles on is then handed
- * to the source, which names the same search with the filters applied
- * (`filteredUrl`), and the tab is sent there. That page is the first one
- * read. Text that is already a URL is used as it is, filters and all: it
- * says what it wants.
- *
- * A site that splits its results over pages (apartments.com: 40 to a page)
- * is walked through them: each page's script names the next, the tab is
- * sent there after a pause, and the lists are joined, a listing the site
- * repeats counted once. Every page gets the same budget as the first. A
- * later page that never answers, a closed tab or Cancel ends the walk with
- * what was read so far, and the outcome says it stopped short.
- *
- * Nothing is asked until the tab has started loading the search page: the
- * page being left may be a search page of its own, and would answer for
- * itself. Runs in the panel, as the bulk loader does, because a run can
- * outlast an idle worker.
+ * One search of one site, start to finish, in the active tab: the site's
+ * search page is opened there and the site's content script reads the result
+ * list off the rendered document, asked every POLL_MS until it answers. A
+ * site that resolves text itself (apartments.com) is opened on its home page
+ * and its script submits the site's own box. Past the deadline the run waits
+ * on the person at the tab rather than giving up. The text is searched bare
+ * first, then the same search with the form's filters applied; a pasted URL
+ * is used as it is. Further pages of results are walked and joined.
  */
 
 const POLL_MS = 750;
@@ -94,13 +57,13 @@ export async function runSearch(source: SourceDescriptor, query: string, { signa
 
     onStatus?.(`Opening ${new URL(url).hostname}…`);
     const tabId = await openAndWaitForLoading(url);
-    say(`opened ${url} in the tab beside the panel`);
+    say(`opened ${url} in the active tab`);
 
     /** Asks the tab until a page not read yet answers with its list; past the deadline, waits on the person at the tab. */
     const readPage = async (read: ReadonlySet<string>, until: number): Promise<PageAnswer> => {
         let answered: string | null = null;
-        let driving = false;
-        let driveNote: string | null = null;
+        let submitting = false;
+        let submitNote: string | null = null;
         let challenge: string | null = null;
         const accept = (response: SearchResponse | undefined): PageAnswer | null => {
             // The page being left still answers for itself until the next one arrives.
@@ -116,14 +79,14 @@ export async function runSearch(source: SourceDescriptor, query: string, { signa
                 say(challenge);
                 onStatus?.(challenge);
             }
-            if (response.driving && !driving) {
-                driving = true;
-                say("the script is driving the site's own search box");
+            if (response.submitting && !submitting) {
+                submitting = true;
+                say("the script is submitting the site's own search box");
                 onStatus?.("Searching on the site…");
             }
-            if (response.driveNote && response.driveNote !== driveNote) {
-                driveNote = response.driveNote;
-                say(driveNote);
+            if (response.submitNote && response.submitNote !== submitNote) {
+                submitNote = response.submitNote;
+                say(submitNote);
             }
             return null;
         };
@@ -157,7 +120,7 @@ export async function runSearch(source: SourceDescriptor, query: string, { signa
         if (filtered && filtered !== first.url) {
             say(`the site's page for “${query}” is ${first.url}`);
             onStatus?.("Applying the filters…");
-            await delay(paceSeconds * 1000, signal);
+            await sleep(paceSeconds * 1000, signal);
             try {
                 await chrome.tabs.update(tabId, { url: filtered });
             } catch {
@@ -182,7 +145,7 @@ export async function runSearch(source: SourceDescriptor, query: string, { signa
                     break;
                 }
                 onStatus?.(`Reading page ${pages + 1}… (${results.length} so far)`);
-                await delay(paceSeconds * 1000, signal);
+                await sleep(paceSeconds * 1000, signal);
                 await chrome.tabs.update(tabId, { url: next });
                 say(`opened page ${pages + 1}, ${next}`);
                 const page = await readPage(read, Date.now() + waitedSeconds * 1000);
@@ -210,13 +173,7 @@ export async function runSearch(source: SourceDescriptor, query: string, { signa
     }
 }
 
-/**
- * Sends the tab beside the panel to `url` and waits for it to start loading,
- * or a few seconds, whichever is first: the page being left may be a search
- * page of its own and would answer for itself. Listening before the
- * navigation is asked for, since the tab can start loading before the call
- * to navigate it returns.
- */
+/** Sends the active tab to `url` and waits for it to start loading, or a few seconds: the page being left may be a search page of its own and would answer for itself. */
 async function openAndWaitForLoading(url: string): Promise<number> {
     const loadingTabs = new Set<number>();
     let wanted: number | null = null;
@@ -228,7 +185,7 @@ async function openAndWaitForLoading(url: string): Promise<number> {
     };
     chrome.tabs.onUpdated.addListener(onUpdated);
     try {
-        const tabId = await navigateTab(await tabBesideThePanel(), url);
+        const tabId = await navigateTab(await activeTabId(), url);
         wanted = tabId;
         if (!loadingTabs.has(tabId)) {
             await new Promise<void>((resolve) => {
