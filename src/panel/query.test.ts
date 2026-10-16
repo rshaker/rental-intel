@@ -9,7 +9,7 @@ function listing(id: string, core: Partial<CoreFields>, extra: Partial<Listing> 
         id,
         source: "example",
         sourceId: id,
-        url: `https://listings.example/l/${id}/`,
+        url: `http://localhost:5174/l/${id}/`,
         kind: "home",
         core: { ...emptyCore(), ...core },
         detail: { version: 1, data: null },

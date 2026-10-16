@@ -55,7 +55,7 @@ test("settings are seeded, editable, bounded, and used; the size is drawn and st
     await expect(setting(page, "photos.save")).not.toBeChecked();
 
     // A setting is used: a listing saved now starts out as "visited".
-    const id = await seedListing(worker, { sourceId: "seeded01", url: "https://listings.example/l/seeded01/", rent: 1, core: { address: { line1: "1 Test St", unit: null, city: null, state: null, zip: null, text: "1 Test St" } } });
+    const id = await seedListing(worker, { sourceId: "seeded01", url: "http://localhost:5174/l/seeded01/", rent: 1, core: { address: { line1: "1 Test St", unit: null, city: null, state: null, zip: null, text: "1 Test St" } } });
     const status = await worker.evaluate(async (id) => (await __intel!.db.listings.get(id))?.user.status, id);
     expect(status).toBe("visited");
 

@@ -15,6 +15,7 @@
         "manifest.config.ts",
         "playwright.config.ts",
         "playwright/**/*.ts",
+        "site/**/*.ts",
         "tasks/**/*.mjs",
         "src/sources/contract.ts",
         "src/sources/descriptors.ts",

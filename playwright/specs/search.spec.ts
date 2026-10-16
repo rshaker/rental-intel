@@ -26,7 +26,7 @@ test("a site search runs in the active tab, lists its results, and a result open
     await expect(links.nth(0)).toHaveAttribute("href", EXAMPLE.building.url);
     await expect(links.nth(1)).toHaveAttribute("href", EXAMPLE.home.url);
     await expect(site.locator(".search-results li").nth(1)).toContainText("$2,400 · 2bd/1ba · 1,150 sqft");
-    await expect(site.locator(".search-status a")).toHaveAttribute("href", "https://listings.example/search/springfield-il/");
+    await expect(site.locator(".search-status a")).toHaveAttribute("href", "http://localhost:5174/search/springfield-il/");
 
     // "Show" narrows the list to the homes or the buildings among the results; the count of each is on its option.
     const show = site.locator(".search-show select");
@@ -40,8 +40,8 @@ test("a site search runs in the active tab, lists its results, and a result open
     await expect(links).toHaveCount(2);
 
     // The search ran in the active tab, which is left on the results page; no other tab was opened.
-    await expect(page).toHaveURL("https://listings.example/search/springfield-il/");
-    expect(context.pages().filter((p) => p.url().includes("listings.example"))).toHaveLength(1);
+    await expect(page).toHaveURL("http://localhost:5174/search/springfield-il/");
+    expect(context.pages().filter((p) => p.url().includes("localhost:5174"))).toHaveLength(1);
 
     // A result goes on to the listing in that tab, so Back returns to the results.
     await links.nth(1).click();
@@ -88,7 +88,7 @@ test("a site search runs in the active tab, lists its results, and a result open
 test("an empty page, a page that never answers, and Cancel each end the run", async ({ context, extensionId }) => {
     const worker = await workerOf(context);
     await worker.evaluate(() => __intel!.setSetting("bulk.detectTimeout", 3));
-    await context.route("https://listings.example/**", (route) => {
+    await context.route("http://localhost:5174/**", (route) => {
         const url = route.request().url();
         let body: string;
         if (url.includes("/search/nowhere/")) body = `<!doctype html><html><head><title>Nowhere</title></head><body><main data-search="nowhere"><h1>Rentals in Nowhere</h1></main></body></html>`;
@@ -109,7 +109,7 @@ test("an empty page, a page that never answers, and Cancel each end the run", as
     await site.locator('input[type="search"]').press("Enter");
     await expect(site.locator(".search-status")).toHaveText(/^No results\./, { timeout: 20_000 });
     await expect(site.locator(".search-results")).toBeHidden();
-    await expect(page).toHaveURL("https://listings.example/search/nowhere/");
+    await expect(page).toHaveURL("http://localhost:5174/search/nowhere/");
 
     // A page that never becomes a search page runs out the budget; the run waits, and Cancel ends it.
     await site.locator('input[type="search"]').fill("blank");
@@ -117,7 +117,7 @@ test("an empty page, a page that never answers, and Cancel each end the run", as
     await expect(site.locator('button[data-action="cancel"]')).toHaveText("Cancel");
     await expect(site.locator(".search-status")).toContainText("Nothing yet after 3s", { timeout: 20_000 });
     await expect(site.locator(".search-status")).toContainText("answer it in the tab");
-    await expect(page).toHaveURL("https://listings.example/search/blank/");
+    await expect(page).toHaveURL("http://localhost:5174/search/blank/");
     await site.locator('button[data-action="cancel"]').click();
     await expect(site.locator(".search-status")).toContainText("Cancelled.");
     await expect(site.locator('button[data-action="run"]')).toHaveText("Search");
@@ -150,8 +150,8 @@ test("filters are applied on the site once it has found the place; a pasted URL 
     await site.locator('input[type="search"]').fill("Springfield, IL");
     await site.locator('input[type="search"]').press("Enter");
     await expect(site.locator(".search-status")).toContainText("2 results", { timeout: 20_000 });
-    await expect(page).toHaveURL("https://listings.example/search/springfield-il/?beds=2&max=2500&cats=1");
-    await expect(site.locator(".search-status a")).toHaveAttribute("href", "https://listings.example/search/springfield-il/?beds=2&max=2500&cats=1");
+    await expect(page).toHaveURL("http://localhost:5174/search/springfield-il/?beds=2&max=2500&cats=1");
+    await expect(site.locator(".search-status a")).toHaveAttribute("href", "http://localhost:5174/search/springfield-il/?beds=2&max=2500&cats=1");
 
     // The filters are part of what a form remembers.
     await panel.reload();
@@ -161,10 +161,10 @@ test("filters are applied on the site once it has found the place; a pasted URL 
     await expect(row(panel).locator('[data-filter="cats"]')).toBeChecked();
 
     // A URL says what it wants: the filters are left off it.
-    await row(panel).locator('input[type="search"]').fill("https://listings.example/search/tacoma/");
+    await row(panel).locator('input[type="search"]').fill("http://localhost:5174/search/tacoma/");
     await row(panel).locator('input[type="search"]').press("Enter");
     await expect(row(panel).locator(".search-status")).toContainText("2 results", { timeout: 20_000 });
-    await expect(page).toHaveURL("https://listings.example/search/tacoma/");
+    await expect(page).toHaveURL("http://localhost:5174/search/tacoma/");
 
     // Reset sets none, and the next run is the bare search again.
     await row(panel).locator(".search-filters-reset").click();
@@ -174,5 +174,5 @@ test("filters are applied on the site once it has found the place; a pasted URL 
     await row(panel).locator('input[type="search"]').fill("Springfield, IL");
     await row(panel).locator('input[type="search"]').press("Enter");
     await expect(row(panel).locator(".search-status")).toContainText("2 results", { timeout: 20_000 });
-    await expect(page).toHaveURL("https://listings.example/search/springfield-il/");
+    await expect(page).toHaveURL("http://localhost:5174/search/springfield-il/");
 });

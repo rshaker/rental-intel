@@ -9,6 +9,12 @@ versions are Dexie's, independent of the release version.
 
 ### Added
 
+- An invented rental site under `site/`: about thirty fictional Austin, TX
+  listings with generated photos, built by Vite and served at
+  http://localhost:5174, where the test build captures from it. The browser
+  harness serves the same files without a server. It gives the example
+  source a whole city to read, so screenshots and tests need no real site's
+  data. `SITE_ORIGIN` at build time moves the site and the source together.
 - A shared list of listing features, used two ways:
   - The Search tab offers the features a site's search accepts, and the
     site's plugin translates them into its search URL. Searches can now

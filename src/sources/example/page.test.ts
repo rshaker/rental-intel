@@ -21,16 +21,16 @@ function fixture(name: string): Document {
 
 describe("exampleUrls", () => {
     it("recognises listing URLs and nothing else", () => {
-        expect(exampleUrls.parse("https://listings.example/l/juniper01/")).toEqual({ sourceId: "juniper01", kind: null });
-        expect(exampleUrls.parse("https://listings.example/l/juniper01")).toEqual({ sourceId: "juniper01", kind: null });
-        expect(exampleUrls.parse("https://listings.example/search/springfield/")).toBeNull();
+        expect(exampleUrls.parse("http://localhost:5174/l/juniper01/")).toEqual({ sourceId: "juniper01", kind: null });
+        expect(exampleUrls.parse("http://localhost:5174/l/juniper01")).toEqual({ sourceId: "juniper01", kind: null });
+        expect(exampleUrls.parse("http://localhost:5174/search/springfield/")).toBeNull();
         expect(exampleUrls.parse("https://other.example/l/juniper01/")).toBeNull();
         expect(exampleUrls.parse("not a url")).toBeNull();
     });
 
     it("builds and canonicalises", () => {
-        expect(exampleUrls.canonical("https://listings.example/l/juniper01?utm_source=x")).toBe("https://listings.example/l/juniper01/");
-        expect(exampleUrls.canonical("https://listings.example/search/")).toBe("https://listings.example/search/");
+        expect(exampleUrls.canonical("http://localhost:5174/l/juniper01?utm_source=x")).toBe("http://localhost:5174/l/juniper01/");
+        expect(exampleUrls.canonical("http://localhost:5174/search/")).toBe("http://localhost:5174/search/");
     });
 });
 
@@ -42,45 +42,45 @@ describe("exampleSearch", () => {
     });
 
     it("builds a search URL from text, or nothing from nothing", () => {
-        expect(exampleSearch.searchUrl("Springfield, IL")).toBe("https://listings.example/search/springfield-il/");
+        expect(exampleSearch.searchUrl("Springfield, IL")).toBe("http://localhost:5174/search/springfield-il/");
         expect(exampleSearch.searchUrl("   ")).toBeNull();
     });
 
     it("tells search pages from the rest", () => {
-        expect(exampleSearch.isSearchUrl("https://listings.example/search/springfield/")).toBe(true);
-        expect(exampleSearch.isSearchUrl("https://listings.example/search/springfield")).toBe(true);
-        expect(exampleSearch.isSearchUrl("https://listings.example/l/juniper01/")).toBe(false);
+        expect(exampleSearch.isSearchUrl("http://localhost:5174/search/springfield/")).toBe(true);
+        expect(exampleSearch.isSearchUrl("http://localhost:5174/search/springfield")).toBe(true);
+        expect(exampleSearch.isSearchUrl("http://localhost:5174/l/juniper01/")).toBe(false);
         expect(exampleSearch.isSearchUrl("https://other.example/search/springfield/")).toBe(false);
-        expect(exampleSearch.isSearchUrl("https://listings.example/search/springfield/?beds=2")).toBe(true);
+        expect(exampleSearch.isSearchUrl("http://localhost:5174/search/springfield/?beds=2")).toBe(true);
     });
 });
 
 describe("exampleSearch.filteredUrl", () => {
     it("puts the filters in the query, replacing any already there", () => {
-        expect(exampleSearch.filteredUrl!("https://listings.example/search/springfield-il/", { beds: 2 })).toBe("https://listings.example/search/springfield-il/?beds=2");
-        expect(exampleSearch.filteredUrl!("https://listings.example/search/springfield-il/?beds=4", { rentMax: 2500, cats: true, laundryInUnit: true, keywords: "  quiet  street " })).toBe(
-            "https://listings.example/search/springfield-il/?max=2500&cats=1&laundry=1&kw=quiet+street",
+        expect(exampleSearch.filteredUrl!("http://localhost:5174/search/springfield-il/", { beds: 2 })).toBe("http://localhost:5174/search/springfield-il/?beds=2");
+        expect(exampleSearch.filteredUrl!("http://localhost:5174/search/springfield-il/?beds=4", { rentMax: 2500, cats: true, laundryInUnit: true, keywords: "  quiet  street " })).toBe(
+            "http://localhost:5174/search/springfield-il/?max=2500&cats=1&laundry=1&kw=quiet+street",
         );
-        expect(exampleSearch.filteredUrl!("https://listings.example/l/juniper01/", { beds: 2 })).toBeNull();
+        expect(exampleSearch.filteredUrl!("http://localhost:5174/l/juniper01/", { beds: 2 })).toBeNull();
     });
 });
 
 describe("example search page", () => {
     const doc = fixture("example-search.html");
-    const url = "https://listings.example/search/springfield/";
+    const url = "http://localhost:5174/search/springfield/";
 
     it("lists its results, each a link with its price and facts", () => {
         expect(examplePage.searchResults!(doc, url)).toEqual([
             {
                 title: "The Juniper Lofts",
-                url: "https://listings.example/l/juniper01/",
+                url: "http://localhost:5174/l/juniper01/",
                 priceText: "$1,895 – $2,850",
                 factsText: "Studio – 2bd · 1 – 2ba",
                 kind: "building",
             },
             {
                 title: "118 Pecan St Unit B",
-                url: "https://listings.example/l/pecan00b/",
+                url: "http://localhost:5174/l/pecan00b/",
                 priceText: "$2,400",
                 factsText: "2bd/1ba · 1,150 sqft",
                 kind: "home",
@@ -94,14 +94,14 @@ describe("example search page", () => {
     });
 
     it("reads nothing off a listing page, or off a search page at a listing URL", () => {
-        expect(examplePage.searchResults!(fixture("example-building.html"), "https://listings.example/l/juniper01/")).toBeNull();
-        expect(examplePage.searchResults!(doc, "https://listings.example/l/juniper01/")).toBeNull();
+        expect(examplePage.searchResults!(fixture("example-building.html"), "http://localhost:5174/l/juniper01/")).toBeNull();
+        expect(examplePage.searchResults!(doc, "http://localhost:5174/l/juniper01/")).toBeNull();
     });
 });
 
 describe("example building page", () => {
     const doc = fixture("example-building.html");
-    const url = "https://listings.example/l/juniper01/";
+    const url = "http://localhost:5174/l/juniper01/";
 
     it("is confirmed by the structured checks and the layout markers", () => {
         const detection = detectListing(examplePage, doc, url);
@@ -117,7 +117,7 @@ describe("example building page", () => {
     });
 
     it("refuses to confirm the page for another listing's URL", () => {
-        const detection = detectListing(examplePage, doc, "https://listings.example/l/someoneelse/");
+        const detection = detectListing(examplePage, doc, "http://localhost:5174/l/someoneelse/");
         expect(detection.confirmed).toBe(false);
         // The page's own checks still name juniper01, which is the conflict that refuses it.
         expect(detection.results.some((r) => r.matched && r.matchedId === "juniper01")).toBe(true);
@@ -152,7 +152,7 @@ describe("example building page", () => {
 
 describe("example home page", () => {
     const doc = fixture("example-home.html");
-    const url = "https://listings.example/l/pecan00b/";
+    const url = "http://localhost:5174/l/pecan00b/";
 
     it("reads as a home with one-value ranges", () => {
         const capture = manualCapture(examplePage, doc, url)!;
@@ -165,7 +165,7 @@ describe("example home page", () => {
         expect(capture.core.features).toEqual(["parking"]);
         expect(capture.core.availableFrom).toBe("2026-12-01");
         expect(capture.core.address.line1).toBe("118 Pecan St Unit B");
-        expect(capture.core.photoUrls).toEqual(["https://photos.listings.example/pecan00b/1.jpg"]);
+        expect(capture.core.photoUrls).toEqual(["http://localhost:5174/photos/pecan00b/1.jpg"]);
     });
 });
 

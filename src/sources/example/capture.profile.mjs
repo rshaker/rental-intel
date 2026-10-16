@@ -1,5 +1,5 @@
 /**
- * What tasks/trim-capture.mjs keeps of a listings.example page when it turns
+ * What tasks/trim-capture.mjs keeps of an example-site page when it turns
  * a raw capture into a fixture, and what it reports about the payload.
  *
  * Every source has one of these next to its page module. Plain JavaScript,
@@ -15,7 +15,7 @@ export default {
     /** Attributes kept on surviving elements. `data-*` keeps every data attribute. */
     keepAttrs: ["id", "href", "src", "alt", "rel", "property", "content", "type", "data-*"],
     /** Hostnames whose <img> elements are kept, so the DOM photo fallback can be tested. */
-    imageHosts: ["photos.listings.example"],
+    imageHosts: ["localhost"],
     /** Keys whose paths the trimmer prints, to find the fields of interest in a fresh payload. */
     keysOfInterest: /^(id|identifier|name|plans|units|rent|beds|baths|sqft|available|latitude|address)$/,
 };

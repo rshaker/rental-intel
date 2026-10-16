@@ -182,7 +182,7 @@ test("an open card shows the site's data and keeps the user's edits through a re
 test("selection, delete, export and import", async ({ context, extensionId }) => {
     const worker = await workerOf(context);
     for (const n of [1, 2, 3]) {
-        await seedListing(worker, { sourceId: `seed000${n}`, url: `https://listings.example/l/seed000${n}/`, rent: 1000 * n, core: { name: `Seed ${n}` } });
+        await seedListing(worker, { sourceId: `seed000${n}`, url: `http://localhost:5174/l/seed000${n}/`, rent: 1000 * n, core: { name: `Seed ${n}` } });
     }
     const panel = await openPanel(context, extensionId, 3);
 
@@ -238,7 +238,7 @@ test("selection, delete, export and import", async ({ context, extensionId }) =>
 
 test("a backup goes through the clipboard, and the log can be copied and cleared", async ({ context, extensionId }) => {
     const worker = await workerOf(context);
-    await seedListing(worker, { sourceId: "seed0001", url: "https://listings.example/l/seed0001/", rent: 1500, core: { name: "Seed 1" } });
+    await seedListing(worker, { sourceId: "seed0001", url: "http://localhost:5174/l/seed0001/", rent: 1500, core: { name: "Seed 1" } });
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const panel = await openPanel(context, extensionId, 1);
     await panel.locator('.tabs button[data-tab="data"]').click();

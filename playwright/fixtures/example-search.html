@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  SYNTHETIC fixture: a search-results page on listings.example. It links to
+  SYNTHETIC fixture: a search-results page on the example site. It links to
   listings and even carries their JSON-LD inside an ItemList, as real sites
   do, but it is not a listing and must never be saved as one.
 
@@ -11,9 +11,9 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <title>Rentals in Springfield, IL | listings.example</title>
-        <link rel="canonical" href="https://listings.example/search/springfield/" />
-        <meta property="og:url" content="https://listings.example/search/springfield/" />
+        <title>Rentals in Springfield, IL | Example Listings</title>
+        <link rel="canonical" href="http://localhost:5174/search/springfield/" />
+        <meta property="og:url" content="http://localhost:5174/search/springfield/" />
         <script type="application/ld+json">
             {
                 "@context": "https://schema.org",
@@ -22,12 +22,12 @@
                     {
                         "@type": "ListItem",
                         "position": 1,
-                        "item": { "@type": "ApartmentComplex", "identifier": "juniper01", "name": "The Juniper Lofts", "url": "https://listings.example/l/juniper01/" }
+                        "item": { "@type": "ApartmentComplex", "identifier": "juniper01", "name": "The Juniper Lofts", "url": "http://localhost:5174/l/juniper01/" }
                     },
                     {
                         "@type": "ListItem",
                         "position": 2,
-                        "item": { "@type": "SingleFamilyResidence", "identifier": "pecan00b", "name": "118 Pecan St Unit B", "url": "https://listings.example/l/pecan00b/" }
+                        "item": { "@type": "SingleFamilyResidence", "identifier": "pecan00b", "name": "118 Pecan St Unit B", "url": "http://localhost:5174/l/pecan00b/" }
                     }
                 ]
             }
@@ -38,12 +38,12 @@
             <h1>Rentals in Springfield, IL</h1>
             <ul>
                 <li data-result data-kind="building">
-                    <a href="https://listings.example/l/juniper01/">The Juniper Lofts</a>
+                    <a href="http://localhost:5174/l/juniper01/">The Juniper Lofts</a>
                     <span data-field="price">$1,895 – $2,850</span>
                     <span data-field="facts">Studio – 2bd · 1 – 2ba</span>
                 </li>
                 <li data-result data-kind="home">
-                    <a href="https://listings.example/l/pecan00b/">118 Pecan St Unit B</a>
+                    <a href="http://localhost:5174/l/pecan00b/">118 Pecan St Unit B</a>
                     <span data-field="price">$2,400</span>
                     <span data-field="facts">2bd/1ba · 1,150 sqft</span>
                 </li>

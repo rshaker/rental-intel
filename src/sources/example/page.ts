@@ -8,11 +8,12 @@ import { ldAddress, ldGeo, ldImages, ldNodeOfType, ldNodes } from "../shared/jso
 import { canonicalCheck, markerCheck, ogUrlCheck } from "../shared/checks";
 import { availability, clean, idString, list, num, record, soonest, str } from "../shared/values";
 import { example } from "./descriptor";
+import { SITE_HOSTNAME } from "./origin";
 import { EXAMPLE_DETAIL_VERSION, type ExampleDetail } from "./types";
 
-/** Recognising and reading a listings.example page. The synthetic site carries JSON-LD, an inline JSON payload (`script#listing-data`) and a data-attribute-marked DOM, so the example exercises each path. */
+/** Recognising and reading a page of the example site. The synthetic site carries JSON-LD, an inline JSON payload (`script#listing-data`) and a data-attribute-marked DOM, so the example exercises each path. */
 
-const PHOTO_HOSTS = ["photos.listings.example"];
+const PHOTO_HOSTS = [SITE_HOSTNAME];
 const LD_TYPES = new Set(["ApartmentComplex", "Apartment", "SingleFamilyResidence", "House"]);
 
 /** The site's wording for the shared features (sources/shared/filters.ts), matched against its amenity lines; the pets line is read by the shared pet words. */

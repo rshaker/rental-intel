@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  SYNTHETIC fixture: a multi-unit listing on listings.example, the example
+  SYNTHETIC fixture: a multi-unit listing on the example site, the example
   source's imaginary site (src/sources/example/). It carries the three
   things real listing pages carry -- JSON-LD for crawlers, an inline JSON
   payload for the site's own scripts, and a marked-up DOM -- so the core can
@@ -9,9 +9,9 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <title>The Juniper Lofts - Springfield, IL | listings.example</title>
-        <link rel="canonical" href="https://listings.example/l/juniper01/" />
-        <meta property="og:url" content="https://listings.example/l/juniper01/" />
+        <title>The Juniper Lofts - Springfield, IL | Example Listings</title>
+        <link rel="canonical" href="http://localhost:5174/l/juniper01/" />
+        <meta property="og:url" content="http://localhost:5174/l/juniper01/" />
         <script type="application/ld+json">
             {
                 "@context": "https://schema.org",
@@ -19,7 +19,7 @@
                     {
                         "@type": "BreadcrumbList",
                         "itemListElement": [
-                            { "@type": "ListItem", "position": 1, "name": "Springfield", "item": "https://listings.example/search/springfield/" },
+                            { "@type": "ListItem", "position": 1, "name": "Springfield", "item": "http://localhost:5174/search/springfield/" },
                             { "@type": "ListItem", "position": 2, "name": "The Juniper Lofts" }
                         ]
                     },
@@ -27,7 +27,7 @@
                         "@type": "ApartmentComplex",
                         "identifier": "juniper01",
                         "name": "The Juniper Lofts",
-                        "url": "https://listings.example/l/juniper01/",
+                        "url": "http://localhost:5174/l/juniper01/",
                         "telephone": "(217) 555-0142",
                         "address": {
                             "@type": "PostalAddress",
@@ -38,9 +38,9 @@
                         },
                         "geo": { "@type": "GeoCoordinates", "latitude": 39.7991, "longitude": -89.6443 },
                         "image": [
-                            "https://photos.listings.example/juniper01/1.jpg",
-                            "https://photos.listings.example/juniper01/2.jpg",
-                            "https://photos.listings.example/juniper01/3.jpg"
+                            "http://localhost:5174/photos/juniper01/1.jpg",
+                            "http://localhost:5174/photos/juniper01/2.jpg",
+                            "http://localhost:5174/photos/juniper01/3.jpg"
                         ]
                     }
                 ]
@@ -68,7 +68,7 @@
             </ul>
             <p data-field="pets">Cats and dogs welcome, $50/mo pet rent</p>
             <div data-field="description">A mid-rise community two blocks from the light rail, with a rooftop deck and quiet courtyard units.</div>
-            <img data-photo src="https://photos.listings.example/juniper01/1.jpg" alt="" />
+            <img data-photo src="http://localhost:5174/photos/juniper01/1.jpg" alt="" />
         </main>
         <script id="listing-data" type="application/json">
             {

@@ -17,8 +17,8 @@ import type { Locator, Page } from "@playwright/test";
 
 const HOME_URL = EXAMPLE.home.url;
 const SAVED_URL = EXAMPLE.building.url;
-const DEAD_URL = "https://listings.example/l/dead0001/";
-const OTHER_URL = "https://listings.example/l/other001/";
+const DEAD_URL = "http://localhost:5174/l/dead0001/";
+const OTHER_URL = "http://localhost:5174/l/other001/";
 
 const action = (page: Page, name: string): Locator => page.locator(`#load-buttons button[data-action="${name}"]`);
 const logLines = (page: Page) => page.locator("#load-log li").allTextContents();
@@ -29,13 +29,13 @@ test("the Load URLs dialog checks a pasted and chosen list, runs it, waits on un
     const worker = await workerOf(context);
     const home = fixtureHtml(EXAMPLE.home.file);
     const search = fixtureHtml(EXAMPLE.search.file);
-    await context.route("https://listings.example/**", async (route) => {
+    await context.route("http://localhost:5174/**", async (route) => {
         const url = route.request().url();
         // The mismatched page answers slowly, so the page being left is still alive after the loader has moved on.
         if (url.includes("other001")) await new Promise((r) => setTimeout(r, 1500));
         await route.fulfill({ contentType: "text/html", body: url.includes(EXAMPLE.home.id) || url.includes("other001") ? home : search });
     });
-    await context.route("https://photos.listings.example/**", (route) => route.fulfill({ status: 404 }));
+    await context.route("http://localhost:5174/photos/**", (route) => route.fulfill({ status: 404 }));
 
     // One listing is already in the database, so its line must be skipped without ever being loaded.
     await seedListing(worker, { sourceId: EXAMPLE.building.id, url: SAVED_URL, kind: "building", core: { name: EXAMPLE.building.name } });
@@ -56,22 +56,22 @@ test("the Load URLs dialog checks a pasted and chosen list, runs it, waits on un
     // Paste some, choose a file for the rest: the file appends to the paste.
     await page.locator("#load-text").fill(`# shortlist\n\n${HOME_URL}\n${HOME_URL}?utm_source=share`);
     const list = test.info().outputPath("shortlist.txt");
-    writeFileSync(list, [SAVED_URL, OTHER_URL, DEAD_URL, "https://listings.example/search/portland/", "not a url"].join("\n"));
+    writeFileSync(list, [SAVED_URL, OTHER_URL, DEAD_URL, "http://localhost:5174/search/portland/", "not a url"].join("\n"));
     await page.locator("#load-file").setInputFiles(list);
-    await expect(page.locator("#load-text")).toHaveValue(`# shortlist\n\n${HOME_URL}\n${HOME_URL}?utm_source=share\n${SAVED_URL}\n${OTHER_URL}\n${DEAD_URL}\nhttps://listings.example/search/portland/\nnot a url`);
+    await expect(page.locator("#load-text")).toHaveValue(`# shortlist\n\n${HOME_URL}\n${HOME_URL}?utm_source=share\n${SAVED_URL}\n${OTHER_URL}\n${DEAD_URL}\nhttp://localhost:5174/search/portland/\nnot a url`);
 
     // Check: the plan goes in the log, and nothing has loaded yet.
     await action(page, "check").click();
     await expect(action(page, "start")).toBeVisible();
     await expect(page.locator("#load-text")).toBeHidden();
     expect((await logLines(page)).slice(1)).toEqual([
-        "Not a listing URL: https://listings.example/search/portland/",
+        "Not a listing URL: http://localhost:5174/search/portland/",
         "Not a listing URL: not a url",
         "1 duplicate line ignored.",
         "1 listing already saved, skipped.",
         "Ready to load 3 listings (3 from example) in the active tab, one at a time.",
     ]);
-    expect(context.pages().filter((p) => p.url().includes("listings.example"))).toHaveLength(0);
+    expect(context.pages().filter((p) => p.url().includes("localhost:5174"))).toHaveLength(0);
 
     // Back keeps the text; Check again gets to the same place.
     await action(page, "back").click();
@@ -120,7 +120,7 @@ test("the Load URLs dialog checks a pasted and chosen list, runs it, waits on un
     expect(saved).toEqual({ address: EXAMPLE.home.address, count: 2 });
 
     // One tab did the loading, and it is left where it finished.
-    const loaders = context.pages().filter((p) => p.url().includes("listings.example"));
+    const loaders = context.pages().filter((p) => p.url().includes("localhost:5174"));
     expect(loaders).toHaveLength(1);
     expect(loaders[0]!.url()).toBe(DEAD_URL);
 

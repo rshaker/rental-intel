@@ -10,7 +10,7 @@ import { seedListing } from "../harness/seed";
 
 test("the Sources tab lists the example source as enabled, with its count, and explains a refused disable", async ({ context, extensionId }) => {
     const worker = await workerOf(context);
-    await seedListing(worker, { sourceId: "seed0001", url: "https://listings.example/l/seed0001/", rent: 1000 });
+    await seedListing(worker, { sourceId: "seed0001", url: "http://localhost:5174/l/seed0001/", rent: 1000 });
 
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/panel/index.html`);
@@ -21,7 +21,7 @@ test("the Sources tab lists the example source as enabled, with its count, and e
     const row = page.locator('#sources .source-row[data-source="example"]');
     await expect(row).toHaveClass(/enabled/);
     await expect(row.locator(".source-name")).toHaveText("Example listings");
-    await expect(row.locator(".source-home")).toHaveAttribute("href", "https://listings.example/");
+    await expect(row.locator(".source-home")).toHaveAttribute("href", "http://localhost:5174/");
     await expect(row.locator(".source-facts")).toContainText("Enabled · 1 listing saved");
     await expect(row.locator('button[data-action="toggle"]')).toHaveText("Disable");
 

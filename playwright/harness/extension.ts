@@ -38,12 +38,12 @@ export async function openPanel(context: BrowserContext, extensionId: string, ex
     return page;
 }
 
-// The example site, served from fixtures; no test touches the network.
+// The example site at its default origin, served from fixtures; no test touches the network. Photos are a path of the site.
 
 export const EXAMPLE = {
-    building: { url: "https://listings.example/l/juniper01/", id: "juniper01", name: "The Juniper Lofts", file: "example-building.html" },
-    home: { url: "https://listings.example/l/pecan00b/", id: "pecan00b", name: "118 Pecan St Unit B", address: "118 Pecan St Unit B, Springfield, IL 62704", file: "example-home.html" },
-    search: { url: "https://listings.example/search/springfield/", file: "example-search.html" },
+    building: { url: "http://localhost:5174/l/juniper01/", id: "juniper01", name: "The Juniper Lofts", file: "example-building.html" },
+    home: { url: "http://localhost:5174/l/pecan00b/", id: "pecan00b", name: "118 Pecan St Unit B", address: "118 Pecan St Unit B, Springfield, IL 62704", file: "example-home.html" },
+    search: { url: "http://localhost:5174/search/springfield/", file: "example-search.html" },
 } as const;
 
 /** A 1x1 PNG, for the photo CDN. */
@@ -53,7 +53,7 @@ export function fixtureHtml(file: string): string {
     return readFileSync(resolve(FIXTURES, file), "utf8");
 }
 
-/** Which fixture stands in for a listings.example URL. */
+/** Which fixture stands in for an example-site URL. */
 export function fixtureFor(url: string): string {
     if (url.includes(`/l/${EXAMPLE.building.id}`)) return fixtureHtml(EXAMPLE.building.file);
     if (url.includes(`/l/${EXAMPLE.home.id}`)) return fixtureHtml(EXAMPLE.home.file);
@@ -61,10 +61,10 @@ export function fixtureFor(url: string): string {
 }
 
 export async function serveExampleSite(context: BrowserContext): Promise<void> {
-    await context.route("https://listings.example/**", (route) =>
+    await context.route("http://localhost:5174/**", (route) =>
         route.fulfill({ contentType: "text/html", body: fixtureFor(route.request().url()) }),
     );
-    await context.route("https://photos.listings.example/**", (route) => route.fulfill({ contentType: "image/png", body: PIXEL }));
+    await context.route("http://localhost:5174/photos/**", (route) => route.fulfill({ contentType: "image/png", body: PIXEL }));
 }
 
 /** Content scripts run at document_idle, so they are not up the instant goto resolves. */

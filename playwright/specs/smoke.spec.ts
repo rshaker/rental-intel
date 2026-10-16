@@ -18,7 +18,7 @@ test("loads with the expected manifest and registers the example content script"
         .poll(() => worker.evaluate(async () => (await chrome.scripting.getRegisteredContentScripts()).map((s) => [s.id, s.matches]).sort()), { timeout: 10_000 })
         .toEqual([
             ["source:apartments", ["*://*.apartments.com/*"]],
-            ["source:example", ["https://listings.example/*"]],
+            ["source:example", ["*://localhost/*"]],
             ["source:zillow", ["*://*.zillow.com/*"]],
             ["source:zillow:main", ["*://*.zillow.com/*"]],
         ]);

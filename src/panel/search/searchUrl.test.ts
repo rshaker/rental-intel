@@ -5,13 +5,13 @@ import { resolveSearchUrl } from "./searchUrl";
 
 describe("resolveSearchUrl", () => {
     it("turns free text into the source's search URL", () => {
-        expect(resolveSearchUrl(example, "Hyde Park, Austin, TX")).toBe("https://listings.example/search/hyde-park-austin-tx/");
-        expect(resolveSearchUrl(example, "  Springfield  ")).toBe("https://listings.example/search/springfield/");
+        expect(resolveSearchUrl(example, "Hyde Park, Austin, TX")).toBe("http://localhost:5174/search/hyde-park-austin-tx/");
+        expect(resolveSearchUrl(example, "  Springfield  ")).toBe("http://localhost:5174/search/springfield/");
     });
 
     it("uses a URL on the site as it is, search page or not", () => {
-        expect(resolveSearchUrl(example, "https://listings.example/search/springfield/?page=2")).toBe("https://listings.example/search/springfield/?page=2");
-        expect(resolveSearchUrl(example, "https://listings.example/l/juniper01/")).toBe("https://listings.example/l/juniper01/");
+        expect(resolveSearchUrl(example, "http://localhost:5174/search/springfield/?page=2")).toBe("http://localhost:5174/search/springfield/?page=2");
+        expect(resolveSearchUrl(example, "http://localhost:5174/l/juniper01/")).toBe("http://localhost:5174/l/juniper01/");
     });
 
     it("refuses blank text, another site's URL and a malformed one", () => {

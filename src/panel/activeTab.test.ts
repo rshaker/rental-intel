@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SOURCES } from "../sources";
 import { listingIdInUrl, offSourceForUrl } from "./activeTab";
 
-const EXAMPLE_URL = "https://listings.example/l/juniper01/";
+const EXAMPLE_URL = "http://localhost:5174/l/juniper01/";
 const none = () => false;
 const all = () => true;
 

@@ -11,7 +11,7 @@ const minimal = (): Backup => ({
             id: "abc",
             source: "example",
             sourceId: "juniper01",
-            url: "https://listings.example/l/juniper01/",
+            url: "http://localhost:5174/l/juniper01/",
             kind: "building",
             core: emptyCore(),
             detail: { version: 1, data: null },

@@ -8,6 +8,7 @@ node_modules
 /dist-e2e
 /*.zip
 /docs/dist
+/site/dist
 
 # playwright artifacts (keep the specs, harness and fixtures)
 /playwright/*

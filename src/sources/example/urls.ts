@@ -1,39 +1,23 @@
 import type { SearchFilters, SourceSearch, SourceUrls, UrlRef } from "../contract.js";
 import { amount, fieldsFor, flag, words } from "../shared/filters.js";
 import { slugify } from "../shared/slug.js";
+import { SITE_ORIGIN, sitePath } from "./origin.js";
 
-/** URL shapes of listings.example: `/l/<id>/` is a listing (the kind is not in the URL), `/search/<city>/` a search page. */
-
-export const EXAMPLE_ORIGIN = "https://listings.example";
+/** URL shapes of the example site, under SITE_ORIGIN: `/l/<id>/` is a listing (the kind is not in the URL), `/search/<slug>/` a search page. */
 
 const LISTING_PATH = /^\/l\/([a-z0-9]{4,12})\/?$/;
 const SEARCH_PATH = /^\/search\/[a-z0-9-]+\/?$/;
 
-function hostMatches(url: string): URL | null {
-    try {
-        const parsed = new URL(url);
-        return parsed.hostname === "listings.example" ? parsed : null;
-    } catch {
-        return null;
-    }
-}
-
 export const exampleUrls: SourceUrls = {
     parse(url: string): UrlRef | null {
-        let parsed: URL;
-        try {
-            parsed = new URL(url);
-        } catch {
-            return null;
-        }
-        if (parsed.hostname !== "listings.example") return null;
-        const id = LISTING_PATH.exec(parsed.pathname)?.[1];
+        const path = sitePath(url);
+        const id = path ? LISTING_PATH.exec(path)?.[1] : undefined;
         return id ? { sourceId: id, kind: null } : null;
     },
 
     canonical(url: string): string {
         const ref = exampleUrls.parse(url);
-        return ref ? `${EXAMPLE_ORIGIN}/l/${ref.sourceId}/` : url;
+        return ref ? `${SITE_ORIGIN}/l/${ref.sourceId}/` : url;
     },
 };
 
@@ -41,20 +25,20 @@ export const exampleUrls: SourceUrls = {
 export const exampleSearch: SourceSearch = {
     searchUrl(query: string): string | null {
         const slug = slugify(query);
-        return slug ? `${EXAMPLE_ORIGIN}/search/${slug}/` : null;
+        return slug ? `${SITE_ORIGIN}/search/${slug}/` : null;
     },
 
     isSearchUrl(url: string): boolean {
-        const parsed = hostMatches(url);
-        return parsed !== null && SEARCH_PATH.test(parsed.pathname);
+        const path = sitePath(url);
+        return path !== null && SEARCH_PATH.test(path);
     },
 
     filters: fieldsFor(["beds", "rentMax", "cats", "laundryInUnit", "keywords"]),
 
     /** The site takes its filters as query parameters: /search/<slug>/?beds=2&max=2500&cats=1&laundry=1&kw=a+b. */
     filteredUrl(url: string, filters: SearchFilters): string | null {
-        const parsed = hostMatches(url);
-        if (parsed === null || !SEARCH_PATH.test(parsed.pathname)) return null;
+        if (!exampleSearch.isSearchUrl(url)) return null;
+        const parsed = new URL(url);
         const beds = amount(filters, "beds");
         const max = amount(filters, "rentMax");
         const keywords = words(filters, "keywords");
