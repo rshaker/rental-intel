@@ -7,6 +7,8 @@ versions are Dexie's, independent of the release version.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-17
+
 ### Added
 
 - An invented rental site under `site/`: about thirty fictional Austin, TX

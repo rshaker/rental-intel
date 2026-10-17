@@ -23,5 +23,5 @@ export const zillow = {
             buildingIds: [data.buildingKey, data.buildingLotId && `lot:${data.buildingLotId}`].filter((id): id is string => !!id),
         };
     },
-    verifiedOn: "2026-09-20",
+    verifiedOn: "2026-10-17",
 } as const satisfies SourceDescriptor;

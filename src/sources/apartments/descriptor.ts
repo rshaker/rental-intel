@@ -13,5 +13,5 @@ export const apartments = {
     },
     urls: apartmentsUrls,
     search: apartmentsSearch,
-    verifiedOn: "2026-10-08",
+    verifiedOn: "2026-10-17",
 } as const satisfies SourceDescriptor;
