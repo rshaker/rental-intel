@@ -16,6 +16,9 @@ node_modules
 !/playwright/specs/**
 !/playwright/harness
 !/playwright/harness/**
+# The Chrome Web Store artwork spec; its images go to work/store/.
+!/playwright/store
+!/playwright/store/**
 # The specs read these at import time, so a clone without them cannot run the
 # suite. Mind what you commit here: a real captured listing page can carry
 # your account context. See the header of each fixture.

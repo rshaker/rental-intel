@@ -43,6 +43,7 @@
         "site:dev": "vite -c site/vite.config.ts",
         "site:build": "vite build -c site/vite.config.ts",
         "site:preview": "vite preview -c site/vite.config.ts",
+        "store:artwork": "npm run build:e2e && npm run site:build && PLAYWRIGHT_BROWSERS_PATH=0 playwright test -c playwright/store/playwright.config.ts",
         "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
         "clean": "rimraf dist site/dist",
         "clean:browsers": "rimraf work/browsers",

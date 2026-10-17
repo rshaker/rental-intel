@@ -89,6 +89,8 @@ unpacked** and choose the `dist/` folder.
   reads at http://localhost:5174, where a test build of the extension can
   capture from it; `npm run site:build` writes it to `site/dist/` for the
   browser harness. `SITE_ORIGIN` at build time moves both to another address
+* `npm run store:artwork` builds both and writes the Chrome Web Store
+  screenshots and tiles to `work/store/`
 * `npm run docs` the API references
 
 A source is one folder, `src/sources/<id>/`: a descriptor (hosts, URL

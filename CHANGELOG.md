@@ -14,7 +14,11 @@ versions are Dexie's, independent of the release version.
   http://localhost:5174, where the test build captures from it. The browser
   harness serves the same files without a server. It gives the example
   source a whole city to read, so screenshots and tests need no real site's
-  data. `SITE_ORIGIN` at build time moves the site and the source together.
+  data. `SITE_ORIGIN` at build time moves the site and the source together,
+  base path included.
+- `npm run store:artwork` builds the test extension and the site and writes
+  the Chrome Web Store screenshots and tiles to `work/store/`, captured from
+  the invented site.
 - A shared list of listing features, used two ways:
   - The Search tab offers the features a site's search accepts, and the
     site's plugin translates them into its search URL. Searches can now
@@ -37,6 +41,8 @@ versions are Dexie's, independent of the release version.
   extension after a store update until the user accepts it.
 - The panel's zoom level is kept only in `localStorage`.
 - The console object `__intel` is now `{ db, upsert, getSettings, setSetting }`.
+- The README and the privacy policy are rewritten, and the package
+  description says in one sentence what the extension does.
 
 ### Removed
 
