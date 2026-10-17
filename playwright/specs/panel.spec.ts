@@ -133,6 +133,9 @@ test("an open card shows the site's data and keeps the user's edits through a re
     await expect(card).not.toHaveClass(/open/);
     await card.locator("h2 .title").click();
     await expect(card).toHaveClass(/open/);
+    // Photos: the thumbnail strip by default, the carousel on request.
+    await expect(card.locator(".thumb")).toHaveCount(3);
+    await panel.locator("#photo-mode").selectOption("carousel");
     await expect(card.locator(".photo img")).toBeVisible();
     await expect(card.locator(".carousel-counter")).toHaveText("1 / 3");
 

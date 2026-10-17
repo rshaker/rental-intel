@@ -78,7 +78,7 @@ async function tile(context: BrowserContext, width: number, height: number, file
         h1 { margin: 0 0 ${big ? 14 : 6}px; font-size: ${big ? 76 : 40}px; letter-spacing: -1px; font-weight: 700; }
         p { margin: 0; font-size: ${big ? 28 : 17}px; opacity: 0.92; max-width: ${big ? 640 : 250}px; line-height: 1.3; }
     </style></head><body>
-        <img src="data:image/png;base64,${ICON}" alt=""><div><h1>Rental Intel</h1><p>Rental listings from every site, saved to one list on your computer.</p></div>
+        <img src="data:image/png;base64,${ICON}" alt=""><div><h1>Rental Intel</h1><p>Track, compare and annotate rental listings from the sites you search, all in one place on your computer.</p></div>
     </body></html>`);
     await page.screenshot({ path: resolve(OUT, file), type: "png" });
     await page.close();
@@ -123,7 +123,7 @@ test("store artwork", async ({ context, extensionId }) => {
         await panel.waitForTimeout(150);
     }
     await panel.mouse.move(0, 0);
-    await frame(context, await panel.screenshot(), "Every listing you looked at, in one list", "Zillow and Apartments.com, saved to your computer with one click. No account, no server.", "screenshot-1-list.jpg");
+    await frame(context, await panel.screenshot(), "One filterable list of all the rentals you're considering", "Browse, filter and sort the listings you have collected from the rental sites, with the rent, rooms and size of each at a glance. Everything stays on your computer.", "screenshot-1-list.jpg");
 
     // 2. One card open: photos, status, details, units.
     const first = panel.locator(".card", { has: panel.locator(".title", { hasText: PICKS[0]!.name }) });
@@ -139,7 +139,7 @@ test("store artwork", async ({ context, extensionId }) => {
         card.scrollIntoView({ block: "start" });
     });
     await panel.waitForTimeout(600);
-    await frame(context, await panel.screenshot(), "The whole listing, kept", "Photos, floor plans and units, fees, the description, plus your own status and notes on each.", "screenshot-2-card.jpg");
+    await frame(context, await panel.screenshot(), "Full-detail views of every unit and building", "Each card includes the photos, floor plans, available units, fees, amenities and description of a listing, together with the status and notes you add to it.", "screenshot-2-card.jpg");
 
     // 3. Search tab: the example site searched, with its filters open.
     await panel.locator('.tabs button[data-tab="search"]').click();
@@ -151,20 +151,20 @@ test("store artwork", async ({ context, extensionId }) => {
     await panel.bringToFront();
     await row.locator(".search-filters-toggle").click();
     await panel.waitForTimeout(300);
-    await frame(context, await panel.screenshot(), "Search the sites from the panel", "Your words and filters land on the site's own results page, in your tab. Add what you find to the list.", "screenshot-3-search.jpg");
+    await frame(context, await panel.screenshot(), "Search remote rental sites from the side panel's UI", "Enter a city or neighborhood and set filters such as rent, bedrooms and pets. The results open to the source site's own page in your current tab, and can be added to your list with the push of a button.", "screenshot-3-search.jpg");
 
     // 4. Sources: opt in per site.
     await panel.locator('.tabs button[data-tab="sources"]').click();
     // The test build carries the synthetic example source; the real one does not.
     await panel.addStyleTag({ content: '#sources .source-row[data-source="example"] { display: none; }' });
     await panel.waitForTimeout(300);
-    await frame(context, await panel.screenshot(), "Sites are off until you turn them on", "Access is asked for one site at a time, only when you enable it, and given back when you disable it.", "screenshot-4-sources.jpg");
+    await frame(context, await panel.screenshot(), "Enable or disable each rentals site individually", "A site stays off until you enable it, which asks Chrome for access to that site only. Disabling the site returns the access. Nothing is stored from pages you only visit.", "screenshot-4-sources.jpg");
 
     // 5. Options, in dark mode.
     await panel.emulateMedia({ colorScheme: "dark" });
     await panel.locator('.tabs button[data-tab="options"]').click();
     await panel.waitForTimeout(300);
-    await frame(context, await panel.screenshot(), "Tuned to how you search", "Photo limits, page timing, the status a new listing starts with, which details to show. Light and dark.", "screenshot-5-options.jpg", true);
+    await frame(context, await panel.screenshot(), "Customizable search and display options", "Panel size and light or dark theme; how many photos to keep per listing; how many result pages a search reads; page timing and failure limits for loading lists; the status a new listing starts with; and which of more than a dozen detail rows each card shows.", "screenshot-5-options.jpg", true);
     await panel.emulateMedia({ colorScheme: "light" });
 
     await tile(context, 440, 280, "promo-tile-440x280.png");
