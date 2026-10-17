@@ -106,6 +106,18 @@ function unitFrom(row: Element, model: { beds: number | null; baths: number | nu
     };
 }
 
+/** The grid items with repeats dropped: a layout without the All tab repeats a plan in every tab it belongs to. */
+function uniqueItems(items: Element[]): Element[] {
+    const seen = new Set<string>();
+    return items.filter((item) => {
+        const key = data(item.querySelector(".priceGridModelWrapper, [data-rentalkey]"), "rentalkey") ?? data(item, "model") ?? data(item, "modelid");
+        if (key === null) return true;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 /** One `.pricingGridItem` (a model, the site's word for a floor plan) with its unit rows. */
 function planFrom(item: Element): { plan: Plan; model: ApartmentsModel } {
     const wrapper = item.querySelector(".priceGridModelWrapper, [data-rentalkey]");
@@ -182,9 +194,10 @@ function propertyTypeFrom(label: string | null, ldTypes: readonly string[]): Pro
 }
 
 /** Fee rows under `root`: `.feeName`, `.feeValue` and the tooltip's note. */
-function feeRows(root: ParentNode): Fee[] {
+function feeRows(root: ParentNode, skip: string | null = null): Fee[] {
     const fees: Fee[] = [];
     for (const nameEl of root.querySelectorAll(".feeName")) {
+        if (skip && nameEl.closest(skip)) continue;
         const row = nameEl.closest(".component-row, .fee-wrapper") ?? nameEl.parentElement;
         if (!row) continue;
         const label = clean(nameEl.getAttribute("title")) ?? clean(nameEl.textContent);
@@ -198,7 +211,8 @@ function feeRows(root: ParentNode): Fee[] {
 /** Every fee tab but the pets one, de-duplicated. */
 function feesFrom(doc: Document): Fee[] {
     const panels = [...doc.querySelectorAll('#profileV2FeesWrapper [role="tabpanel"], #feesPoliciesSection, .feespolicies')].filter((p) => !/pet/i.test(p.id));
-    const rows = panels.length ? panels.flatMap((p) => feeRows(p)) : feeRows(doc);
+    // A page with only a pets tab falls back to the whole document, where the pet rows must still be left out.
+    const rows = panels.length ? panels.flatMap((p) => feeRows(p, PET_PANEL)) : feeRows(doc, PET_PANEL);
     const seen = new Set<string>();
     return rows.filter((fee) => {
         const key = `${fee.label}|${fee.text}`;
@@ -247,7 +261,9 @@ function extract(doc: Document, url: string, sourceId: string): ListingCapture |
     const nodes = ldNodes(doc);
     const ld = ldNodeOfType(nodes, LD_TYPES);
     const entity = record(ld?.["mainEntity"]) ?? ld;
-    const items = [...doc.querySelectorAll(".pricingGridItem")];
+    // The pricing grid is rendered once per bedroom tab (All, Studio, 1 Bed, ...); the All tab holds every plan once.
+    const grid = doc.querySelector('[data-tab-content-id="all"]') ?? doc;
+    const items = uniqueItems([...grid.querySelectorAll(".pricingGridItem")]);
     if (!ld && items.length === 0 && !doc.querySelector("#propertyName")) return null;
 
     const readers: string[] = [];
@@ -260,15 +276,25 @@ function extract(doc: Document, url: string, sourceId: string): ListingCapture |
     const units = plans.flatMap((p) => p.units);
     const strip = stripFrom(doc);
 
-    // A community is a complex, or more than one unit or model; a house or condo has one of each, or none.
-    const kind: ListingKind = ldTypes.includes("ApartmentComplex") || units.length > 1 || plans.length > 1 ? "building" : "home";
-
     const core = emptyCore();
+    core.address = ldAddress(entity?.["address"]) ?? addressFromDom(doc) ?? core.address;
+    // "5511 Guadalupe St Unit 101": the site writes a unit's designation into the title, not the structured address.
+    const title = text(doc, ".propertyAddressContainer h1") ?? text(doc, "h1");
+    const unit = core.address.unit ?? unitFromTitle(title, core.address.line1);
+    if (unit && !core.address.unit) {
+        const { city, state, zip } = core.address;
+        core.address = { ...core.address, unit, text: [title, city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ") };
+    }
+
+    // A community is a complex, or more than one unit or model; a house or condo has one of each, or none.
+    // A single unit listed on the community template is marked a complex by the site, so the unit designation decides.
+    const singleUnit = plans.length === 0 && unit !== null;
+    const kind: ListingKind = (ldTypes.includes("ApartmentComplex") && !singleUnit) || units.length > 1 || plans.length > 1 ? "building" : "home";
+
     const ldName = str(entity?.["name"]) ?? str(ld?.["name"]);
     const domName = text(doc, "#propertyName");
     // A house has no name of its own: the site puts its price in the name slot.
     core.name = kind === "home" ? null : (ldName ?? (domName && !/\$/.test(domName) ? domName : null) ?? text(doc, "h1"));
-    core.address = ldAddress(entity?.["address"]) ?? addressFromDom(doc) ?? core.address;
     core.geo = ldGeo(entity?.["geo"]);
     const phone = str(ld?.["telephone"]) ?? str(entity?.["telephone"]) ?? visible(doc, ".phoneNumber") ?? data(doc.querySelector("[data-phone]"), "phone");
     core.contact.phone = phone && phone.replace(/\D/g, "").length >= 7 ? phone : null;
@@ -420,6 +446,13 @@ function placardKind(placard: Element, name: string | null): ListingKind {
 /** "1800 Lavaca St, Austin, TX 78701": a street, then a city, then a state and zip. */
 function looksLikeAddress(value: string): boolean {
     return /\d/.test(value) && /,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?\s*$/.test(value);
+}
+
+/** The unit designation a title adds to the street line: "5511 Guadalupe St Unit 101" names unit 101 of 5511 Guadalupe St. The site's system ids ("Unit SI FL5-ID695") name nothing. */
+export function unitFromTitle(title: string | null, line1: string | null): string | null {
+    if (!title || !line1 || !title.toLowerCase().startsWith(line1.toLowerCase())) return null;
+    const rest = title.slice(line1.length).trim();
+    return /^(?:unit|apt\.?|apartment|ste\.?|suite|#)\s*#?\s*([A-Za-z0-9-]+)$/i.exec(rest)?.[1] ?? null;
 }
 
 /** The address as the site wrote it, less the system id it puts on a single-unit listing's address line ("Unit SI ID1607372P"). A real unit stays. */

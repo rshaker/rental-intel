@@ -44,6 +44,16 @@ versions are Dexie's, independent of the release version.
 - The README and the privacy policy are rewritten, and the package
   description says in one sentence what the extension does.
 
+### Fixed
+
+- An Apartments.com building no longer lists each floor plan once per
+  bedroom tab. The page repeats its pricing grid under All, Studio, 1 Bed
+  and so on, and every copy was read; now only the All tab is.
+- An Apartments.com page for a single unit, which the site lays out as a
+  community, is read as a home with its unit designation, such as
+  "5511 Guadalupe St Unit 101", instead of as a building with no unit.
+- The Apartments.com pet policy no longer appears among a listing's fees.
+
 ### Removed
 
 - The options page. The Options tab in the panel remains.

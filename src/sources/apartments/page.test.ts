@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectListing, manualCapture } from "../../content/detect";
-import { apartmentsPage, placardAddress } from "./page";
+import { apartmentsPage, placardAddress, unitFromTitle } from "./page";
 import { firstSuggestion, searchFailure, submitSiteSearch } from "./search";
 import type { ApartmentsDetail } from "./types";
 
@@ -54,7 +54,7 @@ describe("apartments.com community page (captured)", () => {
         expect(capture.core.address).toEqual({ line1: "3320 Harmon Ave", unit: null, city: "Austin", state: "TX", zip: "78705", text: "3320 Harmon Ave, Austin, TX 78705" });
         expect(capture.core.geo).toEqual({ lat: 30.29208, lng: -97.72323 });
         expect(capture.core.propertyType).toBe("apartment");
-        expect(capture.core.plans).toHaveLength(60);
+        expect(capture.core.plans).toHaveLength(30);
         expect(capture.core.plans[0]).toMatchObject({ id: "wfmz15j", name: "0B-AMFI 80", beds: 0, baths: 1, sqft: { min: 533, max: 533 }, rent: { min: 1636, max: 1636 }, availableUnits: 1 });
         // The unit's price is the total the listing shows, not the base rent in its data attribute.
         expect(capture.core.plans[0]!.units[0]).toEqual({ id: "14kcv74", name: "241", beds: 0, baths: 1, sqft: 533, rent: 1636, availableFrom: "now", status: "for-rent", url: null });
@@ -63,8 +63,8 @@ describe("apartments.com community page (captured)", () => {
             ["443", 1686],
         ]);
         const units = capture.core.plans.flatMap((p) => p.units);
-        expect(units).toHaveLength(48);
-        expect(capture.core.availableUnits).toBe(48);
+        expect(units).toHaveLength(24);
+        expect(capture.core.availableUnits).toBe(24);
         expect(capture.core.availableFrom).toBe("now");
         expect(capture.core.rent).toEqual({ min: 1415, max: 3566 });
         expect(capture.core.beds).toEqual({ min: 0, max: 2 });
@@ -369,5 +369,45 @@ describe("apartments home page", () => {
         const lost = new DOMParser().parseFromString("<html><head><title>404 Page Not Found</title></head><body><h1>Can we help you get somewhere else?</h1></body></html>", "text/html");
         expect(searchFailure(lost)).toMatch(/no page at that address/);
         expect(apartmentsPage.searchFailure!(lost, "https://www.apartments.com/78701/")).toMatch(/no page/);
+    });
+});
+
+describe("apartments single-unit page", () => {
+    const doc = fixture("apartments-unit.html");
+    const url = "https://www.apartments.com/5511-guadalupe-st-austin-tx-unit-101/k35zqb8/";
+
+    it("is confirmed as its own listing", () => {
+        const detection = detectListing(apartmentsPage, doc, url);
+        expect(detection.confirmed).toBe(true);
+        expect(detection.listingId).toBe("k35zqb8");
+    });
+
+    it("reads a unit listed on the community template as a home with its unit designation", () => {
+        const capture = manualCapture(apartmentsPage, doc, url)!;
+        // The site marks the page an ApartmentComplex and writes "is an apartment community" in the blurb; the title says otherwise.
+        expect(capture.kind).toBe("home");
+        expect(capture.core.name).toBeNull();
+        expect(capture.core.address).toEqual({ line1: "5511 Guadalupe St", unit: "101", city: "Austin", state: "TX", zip: "78751", text: "5511 Guadalupe St Unit 101, Austin, TX 78751" });
+        expect(capture.core.rent).toEqual({ min: 945, max: 945 });
+        expect(capture.core.beds).toEqual({ min: 2, max: 2 });
+        expect(capture.core.baths).toEqual({ min: 1, max: 1 });
+        expect(capture.core.sqft).toEqual({ min: 700, max: 700 });
+        expect(capture.core.availableFrom).toBe("now");
+        expect(capture.core.plans).toEqual([]);
+        expect(capture.core.pets).toBe("Dogs: Allowed · Cats: Allowed");
+        expect(capture.core.features).toEqual(["smallDogs", "largeDogs", "cats"]);
+        // The pets tab is the only fee tab on this page; its rows are a policy, not fees.
+        expect(capture.core.fees).toEqual([]);
+        expect(capture.core.photoUrls).toHaveLength(6);
+        expect((capture.detail.data as ApartmentsDetail).listingId).toBe("k35zqb8");
+    });
+
+    it("reads a unit designation off a title, and never a system id", () => {
+        expect(unitFromTitle("5511 Guadalupe St Unit 101", "5511 Guadalupe St")).toBe("101");
+        expect(unitFromTitle("1440 NW 60th St Unit #2B", "1440 NW 60th St")).toBe("2B");
+        expect(unitFromTitle("2210 Rio Grande St #4", "2210 Rio Grande St")).toBe("4");
+        expect(unitFromTitle("1011 E Terrace St Unit SI FL5-ID695", "1011 E Terrace St")).toBeNull();
+        expect(unitFromTitle("2802 Salado St", "2802 Salado St")).toBeNull();
+        expect(unitFromTitle("Marq Uptown", "3320 Harmon Ave")).toBeNull();
     });
 });
