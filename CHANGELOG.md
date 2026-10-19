@@ -30,6 +30,20 @@ versions are Dexie's, independent of the release version.
 - An **Enable source** button on the Listings tab, shown when the active
   tab is on a site that is turned off.
 - Restoring a backup accepts the first backup format too.
+- A manual release checklist, `docs/release-checks.md`, covering the live
+  sites, Chrome's behaviour and the upgrade from the previous release.
+- `playwright/specs/release.spec.ts` runs the checklist's list, backup and
+  options steps in the browser suite: the search shortcut, the status
+  filter and date sorts, a re-capture of a changed page, one place saved
+  from two sites, the carousel, a backup restoring a deleted listing whole,
+  the photo limit and the colour scheme.
+- `npm run playwright:upgrade` builds the previous release in a git
+  worktree under `work/previous/`, saves a listing with it, swaps in the
+  current build and checks that the listing and its edits survive on the
+  current schema.
+- `npm run zip` now checks the zip it writes: no source maps, the version
+  from package.json, the release name, and the sites' hosts under
+  `optional_host_permissions` only.
 
 ### Changed
 

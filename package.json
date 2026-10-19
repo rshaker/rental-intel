@@ -53,8 +53,9 @@
         "playwright:install-browsers": "PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium",
         "playwright:report": "playwright show-report playwright/playwright-report",
         "playwright:test": "npm run build:e2e && PLAYWRIGHT_BROWSERS_PATH=0 playwright test",
+        "playwright:upgrade": "npm run build:e2e && node tasks/build-previous.mjs && PLAYWRIGHT_BROWSERS_PATH=0 playwright test -c playwright/upgrade/playwright.config.ts",
         "playwright:test-ui": "npm run build:e2e && PLAYWRIGHT_BROWSERS_PATH=0 playwright test --ui",
-        "zip": "RELEASE=1 npm run build && rimraf rental-intel-chrome.zip && cd dist && zip -r -X ../rental-intel-chrome.zip . -x '*.map' -x '.DS_Store'",
+        "zip": "RELEASE=1 npm run build && rimraf rental-intel-chrome.zip && (cd dist && zip -r -X ../rental-intel-chrome.zip . -x '*.map' -x '.DS_Store') && node tasks/check-zip.mjs",
         "test:unit": "vitest run",
         "test:unit-watch": "vitest",
         "test": "npm run test:unit && npm run playwright:test"

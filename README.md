@@ -91,6 +91,14 @@ unpacked** and choose the `dist/` folder.
   browser harness. `SITE_ORIGIN` at build time moves both to another address
 * `npm run store:artwork` builds both and writes the Chrome Web Store
   screenshots and tiles to `work/store/`
+* `npm run zip` builds the release and checks the zip it writes: no source
+  maps, the version from package.json, and only the real sites' hosts
+* `npm run playwright:upgrade` opens a database written by the previous
+  release with this build, after building that release in a git worktree
+  under `work/previous/`
+* [docs/release-checks.md](docs/release-checks.md) is the manual pass over
+  the live sites and Chrome that precedes a store submission, and says
+  which of its former steps the browser suite now runs
 * `npm run docs` the API references
 
 A source is one folder, `src/sources/<id>/`: a descriptor (hosts, URL
