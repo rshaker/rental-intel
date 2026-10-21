@@ -12,15 +12,26 @@ creating one folder of code under `src/sources/` for each new site.
 
 ## Installation
 
-Requires Node 22.12+ and Chrome 116+
+The Chrome Web Store is the simplest way to install the extension, and it
+keeps the extension updated.
+
+To install it by hand instead, download the latest
+`rental-intel-chrome-<version>.zip` from the
+[Releases](https://github.com/rshaker/rental-intel/releases) page (the
+source-code archives beside it are the repository, not the extension) and
+unzip it. Then open `chrome://extensions`, turn on **Developer mode**, click
+**Load unpacked** and choose the unzipped folder. An extension loaded this
+way does not update itself, and Chrome reminds you about developer mode
+each time it starts.
+
+To build it from source instead, with Node 22.12+ and Chrome 116+:
 
 ```sh
 npm install
 npm run build
 ```
 
-Then open `chrome://extensions`, turn on **Developer mode**, click **Load
-unpacked** and choose the `dist/` folder.
+Then load the `dist/` folder unpacked, as above.
 
 ## Usage
 

@@ -7,6 +7,13 @@ versions are Dexie's, independent of the release version.
 
 ## [Unreleased]
 
+### Added
+
+- A GitHub Release for every pushed `vX.Y.Z` tag, made by a workflow: the
+  extension zip, named with the version, is attached to the tag, and the
+  changelog's section for that version is the notes. The README explains
+  installing from such a zip.
+
 ## [0.2.0] - 2026-10-17
 
 ### Added
