@@ -17,6 +17,7 @@
         "playwright/**/*.ts",
         "site/**/*.ts",
         "tasks/**/*.mjs",
+        "tasks/**/*.ts",
         "src/sources/contract.ts",
         "src/sources/descriptors.ts",
         "src/sources/*/descriptor.ts",

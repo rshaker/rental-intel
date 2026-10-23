@@ -2,15 +2,13 @@ import { defineConfig } from "vite";
 import { crx } from "@crxjs/vite-plugin";
 import manifest from "./manifest.config.js";
 import { E2E } from "./manifest.config.js";
-import { DEFAULT_SITE_ORIGIN } from "./src/sources/example/origin.js";
+import { extensionSiteOrigin } from "./src/sources/example/siteOrigins.js";
 
 export default defineConfig({
     plugins: [crx({ manifest })],
     define: {
-        // Whether this is a test build; see manifest.config.ts.
-        __E2E__: JSON.stringify(E2E),
-        // Where the example site lives; see src/sources/example/origin.ts.
-        __SITE_ORIGIN__: JSON.stringify(process.env["SITE_ORIGIN"] || DEFAULT_SITE_ORIGIN),
+        // Where the example site lives: the published copy for a release, the dev server for the test build; see src/sources/example/siteOrigins.ts.
+        __SITE_ORIGIN__: JSON.stringify(extensionSiteOrigin(process.env)),
     },
     build: {
         // The everyday Chrome loads dist/; Playwright loads dist-e2e/.

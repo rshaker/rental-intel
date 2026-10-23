@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseUrlList } from "./urlList";
 
-// The example source is in the registry under test (vitest defines __E2E__).
 const enabled = () => true;
 const nothingEnabled = () => false;
 

@@ -1,15 +1,16 @@
+import { DEV_SITE_ORIGIN } from "./siteOrigins.js";
+
 /**
- * Where the example site lives. The default is the site's own dev server
- * (`npm run site:dev`); `SITE_ORIGIN` at build time moves it, base path
- * included, e.g. `https://rshaker.github.io/rental-intel`. Vite and vitest
- * define `__SITE_ORIGIN__` for the browser; tasks/site-origin.mjs sets it
- * from the environment for Node (the manifest, the harness, the site build).
+ * Where the example site lives, settled at build time (siteOrigins.ts): the
+ * published copy for a release build, the dev server for everything else,
+ * and `SITE_ORIGIN` in the environment over both, base path included. Vite
+ * and vitest define `__SITE_ORIGIN__` for the browser; in Node,
+ * tasks/extension-site-origin.ts sets it for the manifest and
+ * tasks/site-origin.mjs for the harness and the site build.
  */
 
-export const DEFAULT_SITE_ORIGIN = "http://localhost:5174";
-
 /** The site's root URL, no trailing slash: origin plus any base path. */
-export const SITE_ORIGIN = (typeof __SITE_ORIGIN__ === "string" && __SITE_ORIGIN__ !== "" ? __SITE_ORIGIN__ : DEFAULT_SITE_ORIGIN).replace(/\/+$/, "");
+export const SITE_ORIGIN = (typeof __SITE_ORIGIN__ === "string" && __SITE_ORIGIN__ !== "" ? __SITE_ORIGIN__ : DEV_SITE_ORIGIN).replace(/\/+$/, "");
 
 const parsed = new URL(SITE_ORIGIN);
 

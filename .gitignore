@@ -22,6 +22,9 @@ node_modules
 # The upgrade spec; its build of the previous release goes to work/previous/.
 !/playwright/upgrade
 !/playwright/upgrade/**
+# The README's usage screenshots; the images go to docs/images/usage/.
+!/playwright/readme
+!/playwright/readme/**
 # The specs read these at import time, so a clone without them cannot run the
 # suite. Mind what you commit here: a real captured listing page can carry
 # your account context. See the header of each fixture.

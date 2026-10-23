@@ -46,6 +46,7 @@ export function SourcesPane() {
                                         {on ? "Disable" : "Enable"}
                                     </button>
                                 </div>
+                                {source.about && <p class="source-about">{source.about}</p>}
                                 <p class="source-facts">{[on ? "Enabled" : "Off", saved ? `${plural(saved, "listing")} saved` : "nothing saved yet", `checked against the site ${source.verifiedOn}`].join(" · ")}</p>
                                 {note && <p class="source-note">{note}</p>}
                             </li>

@@ -14,17 +14,26 @@ versions are Dexie's, independent of the release version.
   theme chosen in the documentation's Settings when that is set. Its home
   page now explains why the site exists.
 - The documentation's toolbar links to the GitHub repository and to the
-  invented rental site.
+  invented rental site, and the README shows that site's search page.
+- The README's Usage steps each show a screenshot of the side panel, taken
+  from the invented site by `npm run readme:images` and written to
+  `docs/images/usage/`. The Sources tab is shot from the release build,
+  since the test build cannot show a site turned off.
 - A GitHub Release for every pushed `vX.Y.Z` tag, made by a workflow: the
   extension zip, named with the version, is attached to the tag, and the
   changelog's section for that version is the notes. The README explains
   installing from such a zip.
 - The invented rental site is published with the documentation, at
-  https://rshaker.github.io/rental-intel/site/, so a test build made with
-  that `SITE_ORIGIN` can capture from it without a local server. The site
-  now writes a page under every city-suffixed search slug, and its 404 page
-  sends any other search slug to the all-listings page, which is what the
-  dev server's route table did for a static host that cannot run it.
+  https://rshaker.github.io/rental-intel/site/, and the release build now
+  carries it as a third source, Example listings, so anyone who installs
+  the extension can enable it on the Sources tab and try the extension on
+  fictional listings before enabling a real site. The Sources tab says the
+  site is invented. The test build, the unit tests and the browser harness
+  still read the site at http://localhost:5174, and `SITE_ORIGIN` in the
+  environment moves either build. The site now writes a page under every
+  city-suffixed search slug, and its 404 page sends any other search slug
+  to the all-listings page, which is what the dev server's route table did
+  for a static host that cannot run it.
 
 ## [0.2.0] - 2026-10-17
 

@@ -18,8 +18,9 @@ as written is a release blocker until it is explained.
 2. Run `npm run zip`. It typechecks, builds `dist/` in release mode, writes
    `rental-intel-chrome.zip` and checks it: no `.map` files, a
    `manifest.json` carrying package.json's version and the release name,
-   and only the real sites' hosts, under `optional_host_permissions`. A
-   failed check names the reason and the script exits with an error.
+   and the sites' hosts under `optional_host_permissions`: the real sites,
+   the example site at its published address, and no dev server. A failed
+   check names the reason and the script exits with an error.
 3. In Chrome, create a new profile for the test, so no earlier state is in
    the way. Open `chrome://extensions`, turn on Developer mode, click Load
    unpacked and choose `dist/`. The card shows the new version, and no

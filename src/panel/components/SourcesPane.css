@@ -45,6 +45,11 @@
     font-size: 12px;
 }
 
+.source-about {
+    margin: 4px 0 0;
+    font-size: 12px;
+}
+
 .source-facts {
     margin: 4px 0 0;
     color: var(--muted);

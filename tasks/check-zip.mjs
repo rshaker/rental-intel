@@ -2,8 +2,9 @@
 /**
  * Checks the store zip after `npm run zip` writes it: no source maps, a
  * manifest whose version is package.json's, the release name, and the
- * sites' hosts under optional_host_permissions only. Exits 1 with the
- * reasons when any check fails.
+ * sites' hosts under optional_host_permissions only, the example site at its
+ * published address and no dev server among them. Exits 1 with the reasons
+ * when any check fails.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -11,6 +12,8 @@ import { resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const ZIP = resolve(ROOT, "rental-intel-chrome.zip");
+/** The published example site's match pattern (src/sources/example/siteOrigins.ts), spelled out so the check does not share the build's code. */
+const EXAMPLE_HOST = "*://rshaker.github.io/rental-intel/site/*";
 
 const entries = execFileSync("unzip", ["-Z1", ZIP], { encoding: "utf8" }).split("\n").filter(Boolean);
 const manifest = JSON.parse(execFileSync("unzip", ["-p", ZIP, "manifest.json"], { encoding: "utf8" }));
@@ -26,8 +29,9 @@ if (manifest.name !== "Rental Intel") problems.push(`manifest name is "${manifes
 if (manifest.host_permissions !== undefined) problems.push(`host_permissions is set (${JSON.stringify(manifest.host_permissions)}); a release carries only optional_host_permissions`);
 const hosts = manifest.optional_host_permissions ?? [];
 if (hosts.length === 0) problems.push("optional_host_permissions is empty");
-const test = hosts.filter((host) => /localhost|example/.test(host));
-if (test.length) problems.push(`test hosts in optional_host_permissions: ${test.join(", ")}`);
+const dev = hosts.filter((host) => /localhost|127\.0\.0\.1/.test(host));
+if (dev.length) problems.push(`dev-server hosts in optional_host_permissions: ${dev.join(", ")}`);
+if (!hosts.includes(EXAMPLE_HOST)) problems.push(`the example site's host ${EXAMPLE_HOST} is missing from optional_host_permissions`);
 
 if (problems.length) {
     console.error(`rental-intel-chrome.zip failed ${problems.length} check${problems.length === 1 ? "" : "s"}:`);

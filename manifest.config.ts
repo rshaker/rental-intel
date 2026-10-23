@@ -1,18 +1,18 @@
-import "./tasks/site-origin.mjs";
+import "./tasks/extension-site-origin.js";
 import { defineManifest } from "@crxjs/vite-plugin";
 import pkg from "./package.json" with { type: "json" };
-import { allHosts, sourceList } from "./src/sources/descriptors.js";
+import { ALL_SOURCES, allHosts } from "./src/sources/descriptors.js";
 
 /**
  * MV3 manifest. CRXJS rewrites the source paths below to the hashed build
  * output. Hosts are optional: a source is off until enabled on the Sources
  * tab, so there are no `content_scripts` here. E2E=1 builds the test variant:
- * the example source too, and every host required, since Playwright cannot
- * click through Chrome's permission prompt.
+ * every host required, since Playwright cannot click through Chrome's
+ * permission prompt, and the example source at its dev server.
  */
 export const E2E = process.env["E2E"] === "1";
 
-const hosts = allHosts(sourceList(E2E));
+const hosts = allHosts(ALL_SOURCES);
 
 export default defineManifest({
     manifest_version: 3,

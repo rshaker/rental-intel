@@ -1,11 +1,11 @@
 import type { SourceDescriptor } from "./contract";
-import { sourceList, type SourceId } from "./descriptors";
+import { ALL_SOURCES, type SourceId } from "./descriptors";
 import { matchesAny } from "../lib/matchPattern";
 
 export type { SourceId } from "./descriptors";
 
-/** The sources this build carries, and the lookups every context needs. Pure. */
-export const SOURCES: readonly SourceDescriptor[] = sourceList(__E2E__);
+/** The sources the extension carries, and the lookups every context needs. Pure. */
+export const SOURCES: readonly SourceDescriptor[] = ALL_SOURCES;
 
 const BY_ID = new Map(SOURCES.map((source) => [source.id, source]));
 

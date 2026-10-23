@@ -78,6 +78,8 @@ export interface SourceDescriptor {
     /** Three capitals for the tag on a card row: "APT". */
     abbreviation: string;
     homepage: string;
+    /** A sentence about the site for the Sources tab, when its name does not say enough: the example site says it is invented. */
+    about?: string;
     /** Match patterns: `pages` is where the content script runs, `photos` where the worker fetches images from. Both are granted together. */
     hosts: {
         pages: string[];
