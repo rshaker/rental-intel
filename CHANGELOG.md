@@ -9,6 +9,12 @@ versions are Dexie's, independent of the release version.
 
 ### Added
 
+- The invented rental site has a dark theme, in the documentation site's
+  colours, so the two read as one. It follows the system setting, or the
+  theme chosen in the documentation's Settings when that is set. Its home
+  page now explains why the site exists.
+- The documentation's toolbar links to the GitHub repository and to the
+  invented rental site.
 - A GitHub Release for every pushed `vX.Y.Z` tag, made by a workflow: the
   extension zip, named with the version, is attached to the tag, and the
   changelog's section for that version is the notes. The README explains

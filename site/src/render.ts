@@ -39,44 +39,56 @@ function json(value: unknown): string {
 }
 
 const STYLE = `
-    :root { color-scheme: light; --ink: #1f2328; --muted: #6b7280; --line: #e5e7eb; --accent: #2563eb; --bg: #fafafa; }
+    :root { color-scheme: light; --ink: #1f2328; --muted: #6b7280; --line: #e5e7eb; --accent: #2563eb; --bg: #fafafa; --card: #fff; --card-alt: #f3f4f6; --link: #1f70c2; --rating: #b45309; }
+    /* The dark palette is the documentation site's (TypeDoc's default dark
+       theme), so the two read as one site. The theme chosen there, stored
+       under tsd-theme, is honoured here too: the inline script in <head>
+       copies it to data-theme. "os" or nothing follows the system setting. */
+    @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) { color-scheme: dark; --ink: #f5f5f5; --muted: #dddddd; --line: #3d4149; --accent: #2563eb; --bg: #2b2e33; --card: #1e2024; --card-alt: #25282d; --link: #00aff4; --rating: #f4b860; }
+    }
+    :root[data-theme="dark"] { color-scheme: dark; --ink: #f5f5f5; --muted: #dddddd; --line: #3d4149; --accent: #2563eb; --bg: #2b2e33; --card: #1e2024; --card-alt: #25282d; --link: #00aff4; --rating: #f4b860; }
     * { box-sizing: border-box; }
     body { margin: 0; font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--ink); background: var(--bg); }
-    header { background: #fff; border-bottom: 1px solid var(--line); }
+    header { background: var(--card); border-bottom: 1px solid var(--line); }
     header .bar { max-width: 1080px; margin: 0 auto; padding: 14px 20px; display: flex; gap: 24px; align-items: baseline; flex-wrap: wrap; }
     header .brand { font-weight: 700; font-size: 18px; color: var(--ink); text-decoration: none; }
     header nav a { color: var(--muted); text-decoration: none; margin-right: 14px; font-size: 14px; }
-    header nav a:hover { color: var(--accent); }
+    header nav a:hover { color: var(--link); }
     main { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
+    main a { color: var(--link); }
     footer { max-width: 1080px; margin: 0 auto; padding: 24px 20px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); }
     h1 { font-size: 28px; margin: 0 0 4px; }
     h2 { font-size: 18px; margin: 28px 0 10px; }
     .address, .muted { color: var(--muted); }
     .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; margin: 18px 0; }
     .gallery img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 8px; display: block; }
-    table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    table { border-collapse: collapse; width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
     th, td { text-align: left; padding: 8px 12px; border-top: 1px solid var(--line); }
-    tr[data-plan] th { background: #f3f4f6; }
-    tr[data-plan] td { background: #f3f4f6; color: var(--muted); }
+    tr[data-plan] th { background: var(--card-alt); }
+    tr[data-plan] td { background: var(--card-alt); color: var(--muted); }
     ul.amenities { columns: 2; padding-left: 20px; }
     .facts { display: flex; gap: 18px; flex-wrap: wrap; font-size: 15px; margin: 6px 0 0; }
-    .rating { color: #b45309; }
+    .rating { color: var(--rating); }
     .results { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
-    .results li { display: grid; grid-template-columns: 160px 1fr; gap: 16px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+    .results li { display: grid; grid-template-columns: 160px 1fr; gap: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
     .results img { width: 160px; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 6px; display: block; }
     .results a { font-weight: 600; color: var(--ink); text-decoration: none; font-size: 17px; }
-    .results a:hover { color: var(--accent); }
+    .results a:hover { color: var(--link); }
     .results .price { font-weight: 600; margin-top: 2px; }
     .results .line { color: var(--muted); font-size: 14px; }
-    form.filters { display: flex; gap: 14px; flex-wrap: wrap; align-items: end; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 16px 0; font-size: 14px; }
+    form.filters { display: flex; gap: 14px; flex-wrap: wrap; align-items: end; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 16px 0; font-size: 14px; }
     form.filters label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }
     form.filters label.check { flex-direction: row; align-items: center; }
-    form.filters input, form.filters select { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; }
+    form.filters input, form.filters select { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
     form.filters button { font: inherit; padding: 6px 14px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; }
     .hoods { display: flex; gap: 10px; flex-wrap: wrap; padding: 0; list-style: none; }
-    .hoods a { display: inline-block; padding: 8px 14px; background: #fff; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); text-decoration: none; }
+    .hoods a { display: inline-block; padding: 8px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; color: var(--ink); text-decoration: none; }
     .hero { padding: 40px 0 24px; }
     .hero p { font-size: 18px; color: var(--muted); max-width: 560px; }
+    .about { margin-top: 40px; max-width: 640px; color: var(--muted); font-size: 15px; }
+    .about h2 { color: var(--ink); }
+    .about a { color: var(--link); }
     .cta { display: inline-block; margin-top: 8px; padding: 10px 18px; background: var(--accent); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; }
 `;
 
@@ -94,6 +106,7 @@ function layout({ title, url, jsonLd, body }: Layout): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>try{var t=localStorage.getItem("tsd-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <title>${escape(title)} | Example Listings</title>
 <link rel="canonical" href="${url}">
 <meta property="og:url" content="${url}">
@@ -245,6 +258,12 @@ export function homePage(count: number): string {
 <div class="hero"><h1>Rentals in Austin, TX</h1><p>${count} apartments, condos and houses for rent across the city. Every one of them is made up.</p><a class="cta" href="${searchUrl(ALL_SLUG)}">Browse all rentals</a></div>
 <h2>By neighborhood</h2>
 <ul class="hoods">${NEIGHBORHOODS.map((h) => `<li><a href="${searchUrl(slug(h))}">${escape(h)}</a></li>`).join("")}</ul>
+<section class="about">
+<h2>About this site</h2>
+<p>Example Listings exists to support the development of <a href="https://github.com/rshaker/rental-intel">Rental Intel</a>, a Chrome extension that saves rental listings from the web to a private database in your browser. The real rental sites it works with change their pages without notice, discourage automated visits and show other people's homes, which makes them poor material for tests and screenshots.</p>
+<p>This site stands in for them. Its listings are generated from a fixed seed, so every page looks the same on every visit, and the extension's automated tests, its store screenshots and its demos all run against it. If you have the extension installed, you can try it here safely: open any listing and save it.</p>
+<p>Nothing on this site is for rent. The addresses, prices, names and photos are all invented, and any resemblance to a real property or person is coincidence.</p>
+</section>
 </main>`;
     return layout({ title: "Rentals in Austin, TX", url, jsonLd, body });
 }

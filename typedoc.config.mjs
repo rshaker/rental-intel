@@ -31,6 +31,11 @@ export default {
     cleanOutputDir: true,
     hostedBaseUrl: "https://rshaker.github.io/rental-intel/",
     includeVersion: true,
+    // The links at the right of the toolbar.
+    navigationLinks: {
+        "GitHub": "https://github.com/rshaker/rental-intel",
+        "Example Listings": "https://rshaker.github.io/rental-intel/site/",
+    },
     excludeExternals: true,
     excludePrivate: true,
     excludeInternal: true,
