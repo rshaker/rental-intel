@@ -20,6 +20,7 @@ import {
     units,
     type SeedListing,
 } from "./data/index.js";
+import { SITE_BASE } from "../../src/sources/example/origin.js";
 
 /**
  * The pages of the example site as strings. A listing page carries the
@@ -248,8 +249,18 @@ export function homePage(count: number): string {
     return layout({ title: "Rentals in Austin, TX", url, jsonLd, body });
 }
 
+/**
+ * On a static host the 404 page stands in for routes.ts: a search slug no
+ * page answers goes to the all-listings page, query string kept, so a
+ * place the site does not know still shows every rental. Everything else
+ * stays a 404, as for the dev server.
+ */
 export function notFoundPage(): string {
     const url = `${PAGES_ORIGIN}/404`;
-    const body = `<main><h1>Not found</h1><p class="muted">There is no such page on Example Listings.</p><p><a href="${searchUrl(ALL_SLUG)}">Browse all rentals</a></p></main>`;
+    const script = `<script>(function(){
+var p=location.pathname,b=${json(SITE_BASE)};
+if(p.indexOf(b+"/search/")===0)location.replace(${json(searchUrl(ALL_SLUG))}+location.search);
+})();</script>`;
+    const body = `${script}<main><h1>Not found</h1><p class="muted">There is no such page on Example Listings.</p><p><a href="${searchUrl(ALL_SLUG)}">Browse all rentals</a></p></main>`;
     return layout({ title: "Not found", url, jsonLd: { "@context": "https://schema.org", "@type": "WebPage", name: "Not found" }, body });
 }

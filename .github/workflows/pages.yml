@@ -1,4 +1,10 @@
-name: Build and publish documentation to GitHub Pages
+name: Build and publish the documentation and the example site to GitHub Pages
+
+# The docs are the Pages root; the invented rental site (site/) is built for
+# its address under them, <pages url>/site/, and copied in beside them. Its
+# 404 page becomes the root one, since Pages reads only /404.html: it sends
+# an unknown search slug under /site/ to the all-listings page, which is
+# what the dev server does (site/src/routes.ts).
 
 on:
   # Runs on pushes targeting the default branch
@@ -33,6 +39,7 @@ jobs:
           cache: npm
 
       - name: Configure GitHub Pages
+        id: pages
         uses: actions/configure-pages@v6
 
       - name: Install dependencies
@@ -40,6 +47,16 @@ jobs:
 
       - name: Generate documentation (README, docs/*.md, TypeDoc API reference)
         run: npm run docs
+
+      - name: Build the example site for its address under the docs
+        run: npm run site:build
+        env:
+          SITE_ORIGIN: ${{ steps.pages.outputs.base_url }}/site
+
+      - name: Add the site to the Pages artifact (docs/dist/site, its 404 page at the root)
+        run: |
+          cp -R site/dist docs/dist/site
+          cp site/dist/404.html docs/dist/404.html
 
       - name: Upload Pages artifact (docs/dist)
         uses: actions/upload-pages-artifact@v5

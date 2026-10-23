@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { detectListing, manualCapture } from "../../src/content/detect.js";
 import { examplePage } from "../../src/sources/example/page.js";
-import { listings, listingUrl, PAGES_ORIGIN } from "./data/index.js";
+import { listings, listingUrl, NEIGHBORHOODS, PAGES_ORIGIN, searchUrl, slug } from "./data/index.js";
+import { CITY_SUFFIXES } from "./routes.js";
 import { buildSite } from "./site.js";
 
 /**
@@ -71,6 +72,19 @@ describe("the built site", () => {
             expect(r.priceText).toMatch(/^\$/);
             expect(r.kind).not.toBeNull();
         }
+    });
+
+    it("answers every city-suffixed search slug with its own page, as a static host needs", () => {
+        for (const hood of NEIGHBORHOODS) {
+            for (const suffix of CITY_SUFFIXES) expect(files.has(`search/${slug(hood)}${suffix}/index.html`), `${slug(hood)}${suffix}`).toBe(true);
+        }
+        expect(files.has("search/austin-texas/index.html")).toBe(true);
+        expect(files.has("search/austin-austin/index.html")).toBe(false);
+    });
+
+    it("sends an unknown search slug from the 404 page to the all-listings page", () => {
+        const html = files.get("404.html")!;
+        expect(html).toContain(`location.replace(${JSON.stringify(searchUrl("austin-tx"))}+location.search)`);
     });
 
     it("lists every listing on the all-Austin page", () => {

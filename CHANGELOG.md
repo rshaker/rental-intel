@@ -13,6 +13,12 @@ versions are Dexie's, independent of the release version.
   extension zip, named with the version, is attached to the tag, and the
   changelog's section for that version is the notes. The README explains
   installing from such a zip.
+- The invented rental site is published with the documentation, at
+  https://rshaker.github.io/rental-intel/site/, so a test build made with
+  that `SITE_ORIGIN` can capture from it without a local server. The site
+  now writes a page under every city-suffixed search slug, and its 404 page
+  sends any other search slug to the all-listings page, which is what the
+  dev server's route table did for a static host that cannot run it.
 
 ## [0.2.0] - 2026-10-17
 

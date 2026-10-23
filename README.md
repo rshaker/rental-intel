@@ -99,7 +99,10 @@ Then load the `dist/` folder unpacked, as above.
 * `npm run site:dev` serves the invented rental site the example source
   reads at http://localhost:5174, where a test build of the extension can
   capture from it; `npm run site:build` writes it to `site/dist/` for the
-  browser harness. `SITE_ORIGIN` at build time moves both to another address
+  browser harness. `SITE_ORIGIN` at build time moves both to another address.
+  The Pages workflow publishes the same site at
+  https://rshaker.github.io/rental-intel/site/, which a test build made with
+  `SITE_ORIGIN=https://rshaker.github.io/rental-intel/site` reads from
 * `npm run store:artwork` builds both and writes the Chrome Web Store
   screenshots and tiles to `work/store/`
 * `npm run zip` builds the release and checks the zip it writes: no source

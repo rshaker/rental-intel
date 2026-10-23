@@ -13,8 +13,14 @@ export interface Resolved {
     status: 200 | 404;
 }
 
-/** Trailing suffixes a search slug may carry when the query named the city: "hyde-park-austin-tx" -> "hyde-park". */
-const CITY_SUFFIXES = ["-austin-tx", "-austin-texas", "-austin", "-texas", "-tx"];
+/**
+ * Trailing suffixes a search slug may carry when the query named the city:
+ * "hyde-park-austin-tx" -> "hyde-park". The site build writes a page under
+ * every suffixed slug too (site.ts), so a static host such as GitHub Pages
+ * answers them without this lookup; its 404 page sends any other search
+ * slug to the all-listings page, as pagePath does here.
+ */
+export const CITY_SUFFIXES = ["-austin-tx", "-austin-texas", "-austin", "-texas", "-tx"];
 
 /** The request path with the site's base path removed, or null when the request is outside it. */
 export function stripBase(pathname: string): string | null {
